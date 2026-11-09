@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body { background: #050816; }
+
+body {
+  @apply font-sans text-white antialiased;
+  background-image:
+    radial-gradient(900px 500px at 15% -10%, rgba(76, 54, 190, 0.32), transparent 60%),
+    radial-gradient(800px 500px at 100% 100%, rgba(0, 224, 198, 0.13), transparent 60%);
+  background-attachment: fixed;
+}
+
+:focus-visible { outline: 2px solid #00e0c6; outline-offset: 2px; }
+
+@layer components {
+  .panel { @apply rounded-2xl border border-white/10 bg-ink-800/70 backdrop-blur; }
+  .field {
+    @apply w-full rounded-xl border border-white/10 bg-ink-700/80 px-3.5 py-2.5 text-sm text-white
+           placeholder:text-muted/70 focus:border-brand/60 focus:outline-none;
+  }
+  .label { @apply mb-1.5 block text-xs font-semibold text-muted; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
