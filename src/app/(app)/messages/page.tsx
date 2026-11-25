@@ -17,12 +17,19 @@ export default function MessagesPage() {
   const bottom = useRef<HTMLDivElement>(null);
 
   const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations });
-  const msgs = useQuery({ queryKey: ["messages", active], queryFn: () => api.messages(active!), enabled: active !== null });
-  const current = convs.data?.find((c) => c.conversation_id === active);
+  const msgs = useQuery({
+    queryKey: ["messages", active],
+    queryFn: () => api.messages(active!),
+    enabled: active !== null,
+    refetchInterval: active !== null ? 4000 : false,
+  });
+  const convList = Array.isArray(convs.data) ? convs.data : [];
+  const msgList = Array.isArray(msgs.data) ? msgs.data : [];
+  const current = convList.find((c) => c.conversation_id === active);
 
   const filtered = useMemo(
-    () => (convs.data ?? []).filter((c) => c.other_user.full_name.toLowerCase().includes(search.toLowerCase())),
-    [convs.data, search]
+    () => convList.filter((c) => c.other_user.full_name.toLowerCase().includes(search.toLowerCase())),
+    [convList, search]
   );
 
   const append = (m: DirectMessage) =>
@@ -116,7 +123,7 @@ export default function MessagesPage() {
 
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-5" aria-live="polite">
               {msgs.isLoading && <p className="text-sm text-muted">Loading messages…</p>}
-              {(msgs.data ?? []).map((m) => {
+              {msgList.map((m) => {
                 const mine = m.sender_id === meId;
                 return (
                   <div key={m.message_id} className={cn("flex flex-col pb-3", mine ? "items-end" : "items-start")}>

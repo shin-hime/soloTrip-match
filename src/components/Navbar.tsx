@@ -28,8 +28,10 @@ export function Navbar() {
 
   const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations });
   const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications });
-  const unread = (convs.data ?? []).reduce((n, c) => n + c.unread_count, 0);
-  const hasNewNotes = (notes.data ?? []).some((n) => !n.is_read);
+  const convList = Array.isArray(convs.data) ? convs.data : [];
+  const noteList = Array.isArray(notes.data) ? notes.data : [];
+  const unread = convList.reduce((n, c) => n + Number(c.unread_count ?? 0), 0);
+  const hasNewNotes = noteList.some((n) => !n.is_read);
 
   const readNote = useMutation({
     mutationFn: api.markNotificationRead,
@@ -85,8 +87,8 @@ export function Navbar() {
           </button>
           {bellOpen && (
             <div className="panel absolute right-0 mt-2 w-72 p-2 shadow-xl">
-              {(notes.data ?? []).length === 0 && <p className="p-3 text-sm text-muted">You're all caught up.</p>}
-              {(notes.data ?? []).map((n) => (
+              {noteList.length === 0 && <p className="p-3 text-sm text-muted">You're all caught up.</p>}
+              {noteList.map((n) => (
                 <button
                   key={n.notification_id}
                   onClick={() => !n.is_read && readNote.mutate(n.notification_id)}

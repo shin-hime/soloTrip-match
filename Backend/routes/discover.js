@@ -28,16 +28,16 @@ router.get('/', async (req, res) => {
       `SELECT mt.trip_id AS my_trip_id, mt.departure_date::text AS my_dep, mt.return_date::text AS my_ret,
               mt.budget_usd AS my_budget, mi.interests AS my_interests, mi.travel_styles AS my_styles,
               u.user_id, u.full_name, u.age, u.origin_location, u.avatar_url, u.bio, u.budget_range,
-              u.travel_styles, u.interests, u.rating, u.is_verified,
+              u.travel_styles, u.interests, u.rating, u.trips_count, u.is_verified,
               t.trip_id, t.destination, t.departure_date::text AS departure_date, t.return_date::text AS return_date, t.budget_usd
        FROM trips mt
        JOIN users mi ON mi.user_id = mt.user_id
        JOIN trips t ON lower(trim(t.destination)) = lower(trim(mt.destination))
             AND t.departure_date <= mt.return_date AND t.return_date >= mt.departure_date
        JOIN users u ON u.user_id = t.user_id
-       WHERE mt.user_id = $1 AND mt.status::text = 'open'
+       WHERE mt.user_id = $1 AND mt.status::text IN ('open', 'active')
          AND ($2::int IS NULL OR mt.trip_id = $2)
-         AND t.user_id <> $1 AND t.status::text = 'open' AND u.is_active IS NOT FALSE
+         AND t.user_id <> $1 AND t.status::text IN ('open', 'active') AND u.is_active IS NOT FALSE
          AND NOT EXISTS (SELECT 1 FROM likes l WHERE l.liker_id = $1 AND l.liked_id = u.user_id)
          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = $1 AND b.blocked_id = u.user_id)
                                                     OR (b.blocker_id = u.user_id AND b.blocked_id = $1))`,
@@ -51,7 +51,7 @@ router.get('/', async (req, res) => {
       const card = {
         user_id: row.user_id, full_name: row.full_name, age: row.age, origin_location: row.origin_location,
         avatar_url: row.avatar_url, bio: row.bio, budget_range: row.budget_range, travel_styles: row.travel_styles || [],
-        interests: row.interests || [], rating: row.rating, is_verified: row.is_verified,
+        interests: row.interests || [], rating: Number(row.rating || 0), trips_count: Number(row.trips_count || 0), is_verified: row.is_verified,
         destination: row.destination, departure_date: row.departure_date, return_date: row.return_date, budget_usd: row.budget_usd, ...s };
       const cur = best.get(row.user_id);
       if (!cur || card.score > cur.score) best.set(row.user_id, card);

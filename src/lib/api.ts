@@ -1,7 +1,6 @@
 // Single place where the frontend talks to the backend.
 // When NEXT_PUBLIC_API_URL is empty (or NEXT_PUBLIC_USE_MOCK=true) every call returns mock data,
-// so the UI is fully usable before the Express API exists. Endpoint shapes are documented in
-// docs/API_CONTRACT.md — hand that file to the backend developer.
+// so the UI is fully usable before the Express API exists.
 import { useAuth } from "@/store/auth";
 import type {
   AppNotification, AuthResponse, Conversation, DirectMessage, MatchedTraveler, MatchFilters,
@@ -34,19 +33,95 @@ async function request<T>(path: string, init: { method?: string; json?: unknown 
   if (res.status === 401) useAuth.getState().logout();
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(body.message ?? res.statusText, res.status);
+    throw new ApiError(body.error ?? body.message ?? res.statusText, res.status);
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
 const wait = <T,>(value: T, ms = 250) => new Promise<T>((r) => setTimeout(() => r(value), ms));
 
-const qs = (f: MatchFilters) => {
+const normalizeUser = (u: Partial<User>): User => ({
+  user_id: Number(u.user_id ?? 0),
+  full_name: u.full_name ?? "",
+  email: u.email ?? "",
+  auth_provider: u.auth_provider ?? "email",
+  age: u.age != null ? Number(u.age) : null,
+  origin_location: u.origin_location ?? null,
+  avatar_url: u.avatar_url ?? null,
+  cover_photo_url: u.cover_photo_url ?? null,
+  bio: u.bio ?? null,
+  budget_range: u.budget_range ?? null,
+  rating: Number(u.rating ?? 0),
+  trips_count: Number(u.trips_count ?? 0),
+  matches_count: Number(u.matches_count ?? 0),
+  is_verified: Boolean(u.is_verified),
+  hide_contact_info: Boolean(u.hide_contact_info),
+  last_seen_at: u.last_seen_at ?? null,
+  travel_styles: Array.isArray(u.travel_styles) ? u.travel_styles : [],
+  interests: Array.isArray(u.interests) ? u.interests : [],
+  is_active: u.is_active !== false,
+  role: u.role ?? "traveler",
+  created_at: u.created_at ?? "",
+  updated_at: u.updated_at ?? "",
+});
+
+const normalizeTrip = (t: Partial<Trip>): Trip => ({
+  trip_id: Number(t.trip_id ?? 0),
+  user_id: Number(t.user_id ?? 0),
+  destination: t.destination ?? "",
+  traveling_from: t.traveling_from ?? null,
+  departure_date: String(t.departure_date ?? "").slice(0, 10),
+  return_date: String(t.return_date ?? "").slice(0, 10),
+  budget_usd: t.budget_usd != null ? Number(t.budget_usd) : null,
+  looking_for_count: Number(t.looking_for_count ?? 1),
+  status: (t.status ?? "active") as Trip["status"],
+  created_at: t.created_at ?? "",
+});
+
+const normalizeMatch = (m: Partial<MatchedTraveler>): MatchedTraveler => ({
+  user_id: Number(m.user_id ?? 0),
+  full_name: m.full_name ?? "",
+  age: m.age != null ? Number(m.age) : null,
+  avatar_url: m.avatar_url ?? null,
+  rating: Number(m.rating ?? 0),
+  trips_count: Number(m.trips_count ?? 0),
+  bio: m.bio ?? null,
+  interests: Array.isArray(m.interests) ? m.interests : [],
+  travel_styles: Array.isArray(m.travel_styles) ? m.travel_styles : [],
+  destination: m.destination ?? "",
+  departure_date: String(m.departure_date ?? "").slice(0, 10),
+  return_date: String(m.return_date ?? "").slice(0, 10),
+  budget_usd: m.budget_usd != null ? Number(m.budget_usd) : null,
+});
+
+const normalizeGroup = (g: Partial<TripGroup>): TripGroup => ({
+  group_id: Number(g.group_id ?? 0),
+  creator_id: Number(g.creator_id ?? 0),
+  destination: g.destination ?? "",
+  start_date: String(g.start_date ?? "").slice(0, 10),
+  end_date: String(g.end_date ?? "").slice(0, 10),
+  max_members: Number(g.max_members ?? 5),
+  cover_image_url: g.cover_image_url ?? null,
+  created_at: g.created_at ?? "",
+  members: Array.isArray(g.members) ? g.members : [],
+  is_member: Boolean(g.is_member),
+});
+
+const toFrontendReportStatus = (s: string): ReportStatus => {
+  if (s === "pending") return "open";
+  if (s === "reviewed") return "reviewing";
+  if (s === "resolved" || s === "dismissed") return s;
+  return "open";
+};
+
+const toBackendReportStatus = (s: ReportStatus): "reviewed" | "resolved" =>
+  s === "reviewing" || s === "open" ? "reviewed" : "resolved";
+
+const discoverQs = (f: MatchFilters) => {
   const p = new URLSearchParams();
-  Object.entries(f).forEach(([k, v]) => {
-    if (v === undefined || v === "" || (Array.isArray(v) && !v.length)) return;
-    p.set(k, Array.isArray(v) ? v.join(",") : String(v));
-  });
+  if (f.budget_max != null) p.set("budget_max", String(f.budget_max));
+  if (f.styles?.length) p.set("style", f.styles[0]);
+  if (f.interests?.length) p.set("interest", f.interests[0]);
   const s = p.toString();
   return s ? `?${s}` : "";
 };
@@ -54,31 +129,83 @@ const qs = (f: MatchFilters) => {
 export const api = {
   // ---- auth
   login: (email: string, password: string): Promise<AuthResponse> =>
-    USE_MOCK ? wait({ token: "mock-token", user: mockMe }) : request("/auth/login", { method: "POST", json: { email, password } }),
+    USE_MOCK
+      ? wait({ token: "mock-token", user: mockMe })
+      : request<AuthResponse>("/auth/login", { method: "POST", json: { email, password } })
+          .then((r) => ({ token: r.token, user: normalizeUser(r.user) })),
   register: (full_name: string, email: string, password: string): Promise<AuthResponse> =>
     USE_MOCK
       ? wait({ token: "mock-token", user: { ...mockMe, full_name, email } })
-      : request("/auth/register", { method: "POST", json: { full_name, email, password } }),
-  me: (): Promise<User> => (USE_MOCK ? wait(mockMe) : request("/auth/me")),
+      : request<AuthResponse>("/auth/register", { method: "POST", json: { full_name, email, password } })
+          .then((r) => ({ token: r.token, user: normalizeUser(r.user) })),
+  me: (): Promise<User> =>
+    USE_MOCK ? wait(mockMe) : request<Partial<User>>("/profile").then(normalizeUser),
   oauthUrl: (provider: "google" | "facebook") => `${API_URL}/auth/${provider}`,
 
   // ---- trips & matching
-  myActiveTrip: (): Promise<Trip | null> => (USE_MOCK ? wait(mockTrip) : request("/trips/mine/active")),
+  myActiveTrip: (): Promise<Trip | null> => {
+    if (USE_MOCK) return wait(mockTrip);
+    return request<Partial<Trip>[]>("/trips/mine").then((rows) => {
+      const list = Array.isArray(rows) ? rows.map(normalizeTrip) : [];
+      return list.find((t) => String(t.status) === "open" || t.status === "active") ?? list[0] ?? null;
+    });
+  },
   createTrip: (input: NewTripInput): Promise<Trip> =>
     USE_MOCK
       ? wait({ ...mockTrip, ...input, trip_id: Date.now(), status: "active" as const, created_at: new Date().toISOString() })
-      : request("/trips", { method: "POST", json: input }),
-  matches: (filters: MatchFilters): Promise<MatchedTraveler[]> =>
-    USE_MOCK ? wait(mockMatches) : request(`/matches${qs(filters)}`),
+      : request<Partial<Trip>>("/trips", { method: "POST", json: input }).then(normalizeTrip),
+  matches: (filters: MatchFilters): Promise<MatchedTraveler[]> => {
+    if (USE_MOCK) return wait(mockMatches);
+    return request<Partial<MatchedTraveler>[]>(`/discover${discoverQs(filters)}`).then((rows) => {
+      const list = Array.isArray(rows) ? rows.map(normalizeMatch) : [];
+      return list.filter((m) => {
+        if (filters.destination && m.destination.toLowerCase().trim() !== filters.destination.toLowerCase().trim()) return false;
+        if (filters.from && filters.to && (m.return_date < filters.from || m.departure_date > filters.to)) return false;
+        if (filters.budget_min != null && m.budget_usd != null && m.budget_usd < filters.budget_min) return false;
+        return true;
+      });
+    });
+  },
   sendChatRequest: (receiver_id: number): Promise<void> =>
-    USE_MOCK ? wait(undefined, 150) : request("/chat-requests", { method: "POST", json: { receiver_id } }),
+    USE_MOCK
+      ? wait(undefined, 150)
+      : request("/likes", { method: "POST", json: { user_id: receiver_id, action: "like" } }).then(() => undefined),
 
   // ---- messaging
-  conversations: (): Promise<Conversation[]> => (USE_MOCK ? wait([...mockConversations]) : request("/conversations")),
-  messages: (conversationId: number): Promise<DirectMessage[]> =>
-    USE_MOCK ? wait([...(mockMessages[conversationId] ?? [])], 150) : request(`/conversations/${conversationId}/messages`),
+  conversations: (): Promise<Conversation[]> => {
+    if (USE_MOCK) return wait([...mockConversations]);
+    return request<Conversation[] | { conversations?: Conversation[] }>("/chat/conversations").then((r) =>
+      Array.isArray(r) ? r : Array.isArray(r?.conversations) ? r.conversations : []
+    );
+  },
+  messages: (conversationId: number): Promise<DirectMessage[]> => {
+    if (USE_MOCK) return wait([...(mockMessages[conversationId] ?? [])], 150);
+    return request<Partial<DirectMessage>[]>(`/chat/${conversationId}/messages`).then((rows) =>
+      Array.isArray(rows)
+        ? rows.map((m) => ({
+            message_id: Number(m.message_id ?? 0),
+            conversation_id: Number(m.conversation_id ?? conversationId),
+            sender_id: Number(m.sender_id ?? 0),
+            receiver_id: Number(m.receiver_id ?? 0),
+            content: m.content ?? "",
+            is_read: Boolean(m.is_read ?? true),
+            sent_at: m.sent_at ?? new Date().toISOString(),
+          }))
+        : []
+    );
+  },
   sendMessage: (conversationId: number, content: string): Promise<DirectMessage> => {
-    if (!USE_MOCK) return request(`/conversations/${conversationId}/messages`, { method: "POST", json: { content } });
+    if (!USE_MOCK) {
+      return request<Partial<DirectMessage>>(`/chat/${conversationId}/messages`, { method: "POST", json: { content } }).then((m) => ({
+        message_id: Number(m.message_id ?? Date.now()),
+        conversation_id: Number(m.conversation_id ?? conversationId),
+        sender_id: Number(m.sender_id ?? useAuth.getState().user?.user_id ?? 0),
+        receiver_id: Number(m.receiver_id ?? 0),
+        content: m.content ?? content,
+        is_read: Boolean(m.is_read ?? false),
+        sent_at: m.sent_at ?? new Date().toISOString(),
+      }));
+    }
     const conv = mockConversations.find((c) => c.conversation_id === conversationId)!;
     const msg: DirectMessage = {
       message_id: newMockMessageId(), conversation_id: conversationId, sender_id: mockMe.user_id,
@@ -90,16 +217,24 @@ export const api = {
     return wait(msg, 100);
   },
   markRead: (conversationId: number): Promise<void> => {
-    if (!USE_MOCK) return request(`/conversations/${conversationId}/read`, { method: "PATCH" });
+    // GET /chat/:id/messages marks incoming messages read automatically on the backend.
+    if (!USE_MOCK) return Promise.resolve();
     const conv = mockConversations.find((c) => c.conversation_id === conversationId);
     if (conv) conv.unread_count = 0;
     return wait(undefined, 50);
   },
 
   // ---- groups
-  groups: (): Promise<TripGroup[]> => (USE_MOCK ? wait([...mockGroups]) : request("/groups")),
+  groups: (): Promise<TripGroup[]> =>
+    USE_MOCK
+      ? wait([...mockGroups])
+      : request<Partial<TripGroup>[]>("/groups").then((rows) => (Array.isArray(rows) ? rows.map(normalizeGroup) : [])),
   createGroup: (input: NewGroupInput): Promise<TripGroup> => {
-    if (!USE_MOCK) return request("/groups", { method: "POST", json: input });
+    if (!USE_MOCK) {
+      return request<Partial<TripGroup>>("/groups", { method: "POST", json: input }).then((r) =>
+        normalizeGroup({ ...input, ...r, is_member: true })
+      );
+    }
     const g: TripGroup = {
       ...input, group_id: Date.now(), creator_id: mockMe.user_id, cover_image_url: null,
       created_at: new Date().toISOString(), is_member: true,
@@ -109,7 +244,7 @@ export const api = {
     return wait(g);
   },
   joinGroup: (id: number): Promise<void> => {
-    if (!USE_MOCK) return request(`/groups/${id}/join`, { method: "POST" });
+    if (!USE_MOCK) return request(`/groups/${id}/join`, { method: "POST" }).then(() => undefined);
     const g = mockGroups.find((x) => x.group_id === id);
     if (g && !g.is_member && g.members.length < g.max_members) {
       g.is_member = true;
@@ -118,7 +253,7 @@ export const api = {
     return wait(undefined, 150);
   },
   leaveGroup: (id: number): Promise<void> => {
-    if (!USE_MOCK) return request(`/groups/${id}/leave`, { method: "DELETE" });
+    if (!USE_MOCK) return request(`/groups/${id}/leave`, { method: "POST" }).then(() => undefined);
     const g = mockGroups.find((x) => x.group_id === id);
     if (g) {
       g.is_member = false;
@@ -129,31 +264,48 @@ export const api = {
 
   // ---- profile & safety
   updateMe: (patch: Partial<User>): Promise<User> => {
-    if (!USE_MOCK) return request("/users/me", { method: "PATCH", json: patch });
+    if (!USE_MOCK) return request<Partial<User>>("/profile", { method: "PATCH", json: patch }).then(normalizeUser);
     Object.assign(mockMe, patch);
     return wait({ ...mockMe }, 100);
   },
   reportUser: (reported_user_id: number, reason: string): Promise<void> =>
-    USE_MOCK ? wait(undefined) : request("/reports", { method: "POST", json: { reported_user_id, reason } }),
+    USE_MOCK
+      ? wait(undefined)
+      : request("/safety/report", { method: "POST", json: { user_id: reported_user_id, reason } }).then(() => undefined),
 
   // ---- notifications
-  notifications: (): Promise<AppNotification[]> =>
-    USE_MOCK ? wait([...mockNotifications], 100) : request("/notifications"),
+  notifications: (): Promise<AppNotification[]> => {
+    if (USE_MOCK) return wait([...mockNotifications], 100);
+    return request<AppNotification[] | { unread?: number; items?: AppNotification[] }>("/notifications").then((r) =>
+      Array.isArray(r) ? r : Array.isArray(r?.items) ? r.items : []
+    );
+  },
   markNotificationRead: (id: number): Promise<void> => {
-    if (!USE_MOCK) return request(`/notifications/${id}/read`, { method: "PATCH" });
+    if (!USE_MOCK) return request("/notifications/read-all", { method: "POST" }).then(() => undefined);
     const n = mockNotifications.find((x) => x.notification_id === id);
     if (n) n.is_read = true;
     return wait(undefined, 50);
   },
 
   // ---- admin
-  adminReports: (): Promise<UserReport[]> => (USE_MOCK ? wait([...mockReports]) : request("/admin/reports")),
+  adminReports: (): Promise<UserReport[]> => {
+    if (USE_MOCK) return wait([...mockReports]);
+    return request<UserReport[]>("/admin/reports").then((rows) =>
+      Array.isArray(rows)
+        ? rows.map((r) => ({ ...r, status: toFrontendReportStatus(String(r.status)) }))
+        : []
+    );
+  },
   adminUpdateReport: (id: number, status: ReportStatus): Promise<void> => {
-    if (!USE_MOCK) return request(`/admin/reports/${id}`, { method: "PATCH", json: { status } });
+    if (!USE_MOCK) {
+      return request(`/admin/reports/${id}`, { method: "PUT", json: { status: toBackendReportStatus(status) } }).then(() => undefined);
+    }
     const r = mockReports.find((x) => x.report_id === id);
     if (r) r.status = status;
     return wait(undefined, 100);
   },
   adminSetUserActive: (userId: number, is_active: boolean): Promise<void> =>
-    USE_MOCK ? wait(undefined) : request(`/admin/users/${userId}`, { method: "PATCH", json: { is_active } }),
+    USE_MOCK
+      ? wait(undefined)
+      : request(`/admin/users/${userId}/active`, { method: "PUT", json: { is_active } }).then(() => undefined),
 };

@@ -69,15 +69,16 @@ export default function GroupsPage() {
       {groups.isSuccess && groups.data.length === 0 && <p className="text-sm text-muted">No groups yet. Create the first one for your destination.</p>}
 
       <div className="space-y-4">
-        {(groups.data ?? []).map((g) => {
-          const full = g.members.length >= g.max_members;
-          const pct = (g.members.length / g.max_members) * 100;
+        {(Array.isArray(groups.data) ? groups.data : []).map((g) => {
+          const members = Array.isArray(g.members) ? g.members : [];
+          const full = members.length >= g.max_members;
+          const pct = g.max_members > 0 ? (members.length / g.max_members) * 100 : 0;
           return (
             <article key={g.group_id} className="panel overflow-hidden">
               <div className="relative flex h-32 items-center justify-between p-5" style={{ background: gradientFor(g.destination) }}>
                 <div className="rounded-lg bg-black/25 px-3 py-2 backdrop-blur-sm">
                   <h2 className="text-lg font-bold">{g.destination}</h2>
-                  <p className="text-xs text-white/80">📅 {fmtRange(g.start_date, g.end_date)} &nbsp; 👥 {g.members.length}/{g.max_members}</p>
+                  <p className="text-xs text-white/80">📅 {fmtRange(g.start_date, g.end_date)} &nbsp; 👥 {members.length}/{g.max_members}</p>
                 </div>
                 {g.is_member ? (
                   <Button variant="outline" disabled={leave.isPending} onClick={() => leave.mutate(g.group_id)}>Leave</Button>
@@ -88,13 +89,13 @@ export default function GroupsPage() {
               <div className="flex items-center justify-between gap-4 p-4">
                 <div className="flex items-center gap-3">
                   <span className="flex -space-x-2">
-                    {g.members.map((m) => <Avatar key={m.user_id} name={m.full_name} src={m.avatar_url} size={30} className="rounded-full ring-2 ring-ink-800" />)}
+                    {members.map((m) => <Avatar key={m.user_id} name={m.full_name} src={m.avatar_url} size={30} className="rounded-full ring-2 ring-ink-800" />)}
                   </span>
-                  <span className="text-xs text-muted">{g.members.map((m) => m.full_name.split(" ")[0]).join(" · ")}</span>
+                  <span className="text-xs text-muted">{members.map((m) => m.full_name.split(" ")[0]).join(" · ")}</span>
                 </div>
-                <div className="flex items-center gap-3" aria-label={`${g.members.length} of ${g.max_members} spots filled`}>
+                <div className="flex items-center gap-3" aria-label={`${members.length} of ${g.max_members} spots filled`}>
                   <span className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full bg-gradient-to-r from-brand to-violet-brand" style={{ width: `${pct}%` }} /></span>
-                  <span className="text-xs text-muted">{g.members.length}/{g.max_members}</span>
+                  <span className="text-xs text-muted">{members.length}/{g.max_members}</span>
                 </div>
               </div>
             </article>

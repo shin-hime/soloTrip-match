@@ -35,7 +35,7 @@ export default function ProfilePage() {
             <h1 className="mt-3 text-lg font-bold">{u.full_name}{u.age ? `, ${u.age}` : ""}</h1>
             <p className="text-xs text-muted">{u.origin_location}{u.is_verified ? " · Verified ✓" : ""}</p>
             <dl className="mt-4 flex gap-6 font-serif text-xl">
-              {[["Trips", u.trips_count], ["Matches", u.matches_count], ["Rating", u.rating.toFixed(1)]].map(([label, val]) => (
+              {[["Trips", u.trips_count ?? 0], ["Matches", u.matches_count ?? 0], ["Rating", Number(u.rating ?? 0).toFixed(1)]].map(([label, val]) => (
                 <div key={label as string}><dd>{val}</dd><dt className="font-sans text-[11px] text-muted">{label}</dt></div>
               ))}
             </dl>
@@ -59,12 +59,12 @@ export default function ProfilePage() {
         <section className="panel p-5"><h2 className="mb-2 text-sm font-semibold">About me</h2><p className="text-sm text-muted">{u.bio ?? "Add a short bio so travelers know what you're like."}</p></section>
         <section className="panel p-5">
           <h2 className="mb-2 text-sm font-semibold">Travel style</h2>
-          <Row k="Style" v={u.travel_styles.join(" · ") || null} />
+          <Row k="Style" v={(u.travel_styles ?? []).join(" · ") || null} />
           <Row k="Budget" v={u.budget_range} />
         </section>
         <section className="panel p-5">
           <h2 className="mb-3 text-sm font-semibold">Interests</h2>
-          <div className="flex flex-wrap gap-2">{u.interests.map((i) => <Chip key={i} active>{i}</Chip>)}</div>
+          <div className="flex flex-wrap gap-2">{(u.interests ?? []).map((i) => <Chip key={i} active>{i}</Chip>)}</div>
         </section>
         {trip.data && (
           <section className="panel flex items-center justify-between border-brand/30 p-5">

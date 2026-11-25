@@ -8,8 +8,10 @@ const isMember = async (gid, uid) => (await db.query('SELECT 1 FROM group_member
 router.get('/', async (req, res) => {
   const dest = (req.query.destination || '').trim();
   const r = await db.query(
-    `SELECT g.group_id, g.destination, g.start_date::text, g.end_date::text, g.max_members, g.creator_id, u.full_name AS creator_name,
+    `SELECT g.group_id, g.destination, g.start_date::text, g.end_date::text, g.max_members, g.creator_id, g.cover_image_url, g.created_at, u.full_name AS creator_name,
             (SELECT count(*)::int FROM group_members m WHERE m.group_id = g.group_id) AS member_count,
+            COALESCE((SELECT json_agg(json_build_object('user_id', u2.user_id, 'full_name', u2.full_name, 'avatar_url', u2.avatar_url, 'role', m.role))
+                      FROM group_members m JOIN users u2 ON u2.user_id = m.user_id WHERE m.group_id = g.group_id), '[]'::json) AS members,
             EXISTS (SELECT 1 FROM group_members m WHERE m.group_id = g.group_id AND m.user_id = $1) AS is_member
      FROM trip_groups g JOIN users u ON u.user_id = g.creator_id
      WHERE g.end_date >= current_date AND ($2 = '' OR g.destination ILIKE '%' || $2 || '%')

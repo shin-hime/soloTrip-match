@@ -116,10 +116,10 @@ export default function DiscoverPage() {
               <div className="p-3">
                 <div className="flex justify-between text-xs text-muted">
                   <span>{fmtRange(u.departure_date, u.return_date)}</span>
-                  <span>★ {u.rating.toFixed(1)}</span>
+                  <span>★ {Number(u.rating ?? 0).toFixed(1)}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {u.interests.slice(0, 2).map((i) => <Chip key={i} small active>{i}</Chip>)}
+                  {(u.interests ?? []).slice(0, 2).map((i) => <Chip key={i} small active>{i}</Chip>)}
                 </div>
               </div>
             </button>
@@ -137,7 +137,7 @@ export default function DiscoverPage() {
           <div className="panel overflow-hidden">
             <div className="relative h-52">
               <Photo name={current.destination} className="absolute inset-0" />
-              {current.travel_styles[0] && (
+              {(current.travel_styles ?? [])[0] && (
                 <span className="absolute right-3 top-3 rounded-full bg-black/40 px-3 py-1 text-xs text-brand">{current.travel_styles[0]}</span>
               )}
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/75 to-transparent p-4">
@@ -145,17 +145,17 @@ export default function DiscoverPage() {
                   <p className="font-serif text-2xl">{current.full_name}{current.age ? `, ${current.age}` : ""}</p>
                   <p className="text-xs text-brand">📍 {current.destination}</p>
                 </div>
-                <span className="rounded-full bg-black/40 px-2 py-1 text-xs">★ {current.rating.toFixed(1)}</span>
+                <span className="rounded-full bg-black/40 px-2 py-1 text-xs">★ {Number(current.rating ?? 0).toFixed(1)}</span>
               </div>
             </div>
             <div className="space-y-3 p-4">
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="rounded-lg border border-brand/20 bg-brand-soft p-2"><p className="text-muted">Dates</p><p className="font-semibold text-brand">{fmtRange(current.departure_date, current.return_date)}</p></div>
                 <div className="rounded-lg border border-violet-brand/30 bg-violet-soft p-2"><p className="text-muted">Budget</p><p className="font-semibold">{current.budget_usd ? `$${current.budget_usd}` : "—"}</p></div>
-                <div className="rounded-lg border border-white/10 p-2"><p className="text-muted">Trips</p><p className="font-semibold">{current.trips_count}</p></div>
+                <div className="rounded-lg border border-white/10 p-2"><p className="text-muted">Trips</p><p className="font-semibold">{current.trips_count ?? 0}</p></div>
               </div>
               {current.bio && <p className="text-sm text-muted">{current.bio}</p>}
-              <div className="flex flex-wrap gap-1.5">{current.interests.map((i) => <Chip key={i} small active>{i}</Chip>)}</div>
+              <div className="flex flex-wrap gap-1.5">{(current.interests ?? []).map((i) => <Chip key={i} small active>{i}</Chip>)}</div>
             </div>
           </div>
         ) : (

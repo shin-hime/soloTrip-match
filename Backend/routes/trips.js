@@ -4,7 +4,7 @@ const { requireAuth } = require('./auth');
 router.use(requireAuth);
 
 function check(b) {
-  if (!b.destination || !b.traveling_from) return 'Destination and starting location are required.';
+  if (!b.destination || !String(b.destination).trim()) return 'Destination is required.';
   if (!b.departure_date || !b.return_date) return 'Both dates are required.';
   if (b.return_date < b.departure_date) return 'Return date cannot be before departure date.';
   return null;
@@ -31,10 +31,11 @@ router.post('/', async (req, res) => {
     if (err) return res.status(400).json({ error: err });
     const r = await db.query(
       `INSERT INTO trips (user_id, destination, traveling_from, departure_date, return_date, budget_usd, looking_for_count, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'open') RETURNING trip_id`,
-      [req.user.id, b.destination.trim(), b.traveling_from.trim(), b.departure_date, b.return_date, num(b.budget_usd), num(b.looking_for_count)]);
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'open')
+       RETURNING trip_id, user_id, destination, traveling_from, departure_date::text, return_date::text, budget_usd, looking_for_count, status, created_at`,
+      [req.user.id, b.destination.trim(), (b.traveling_from || '').trim(), b.departure_date, b.return_date, num(b.budget_usd), num(b.looking_for_count) || 1]);
     await setRange(r.rows[0].trip_id, b.departure_date, b.return_date);
-    res.status(201).json({ trip_id: r.rows[0].trip_id });
+    res.status(201).json(r.rows[0]);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
 
