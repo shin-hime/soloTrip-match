@@ -21,17 +21,37 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  const b = req.body, max = parseInt(b.max_members, 10) || 6;
+  if (!b.destination || !b.start_date || !b.end_date) return res.status(400).json({ error: 'Destination and dates are required.' });
+  if (b.end_date < b.start_date) return res.status(400).json({ error: 'End date cannot be before start date.' });
+  if (max < 2 || max > 20) return res.status(400).json({ error: 'Group size must be between 2 and 20.' });
+
+  const client = await db.connect();
   try {
-    const b = req.body, max = parseInt(b.max_members, 10) || 6;
-    if (!b.destination || !b.start_date || !b.end_date) return res.status(400).json({ error: 'Destination and dates are required.' });
-    if (b.end_date < b.start_date) return res.status(400).json({ error: 'End date cannot be before start date.' });
-    if (max < 2 || max > 20) return res.status(400).json({ error: 'Group size must be between 2 and 20.' });
-    const g = await db.query(
-      `INSERT INTO trip_groups (creator_id, destination, start_date, end_date, max_members) VALUES ($1,$2,$3,$4,$5) RETURNING group_id`,
+    await client.query('BEGIN');
+    const g = await client.query(
+      `INSERT INTO trip_groups (creator_id, destination, start_date, end_date, max_members)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING group_id, creator_id, destination, start_date::text, end_date::text, max_members, cover_image_url, created_at`,
       [req.user.id, b.destination.trim(), b.start_date, b.end_date, max]);
-    await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [g.rows[0].group_id, req.user.id]);
-    res.status(201).json({ group_id: g.rows[0].group_id });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
+    await client.query(
+      `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'host')`,
+      [g.rows[0].group_id, req.user.id]);
+    const me = await client.query(`SELECT user_id, full_name, avatar_url FROM users WHERE user_id = $1`, [req.user.id]);
+    await client.query('COMMIT');
+    res.status(201).json({
+      ...g.rows[0],
+      member_count: 1,
+      is_member: true,
+      members: me.rowCount ? [{ ...me.rows[0], role: 'host' }] : [],
+    });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(e);
+    res.status(500).json({ error: 'Server error.' });
+  } finally {
+    client.release();
+  }
 });
 
 router.post('/:id/join', async (req, res) => {

@@ -18,6 +18,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
   });
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (create.isPending) return;
     if (!f.destination.trim()) return setError("Enter a destination.");
     if (!f.start_date || !f.end_date || f.end_date < f.start_date) return setError("Choose valid start and end dates.");
     setError(null);
@@ -38,8 +39,8 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
           </select></div>
         {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={create.isPending}>Create group</Button>
+          <Button type="button" variant="ghost" disabled={create.isPending} onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={create.isPending}>{create.isPending ? "Creating…" : "Create group"}</Button>
         </div>
       </form>
     </div>
