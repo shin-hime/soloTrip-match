@@ -1,0 +1,31 @@
+const router = require('express').Router();
+const db = require('../db');
+const { requireAuth } = require('./auth');
+router.use(requireAuth);
+
+router.post('/report', async (req, res) => {
+  const target = parseInt(req.body.user_id, 10), reason = (req.body.reason || '').trim();
+  if (!target || target === req.user.id) return res.status(400).json({ error: 'Invalid user.' });
+  if (reason.length < 3 || reason.length > 1000) return res.status(400).json({ error: 'Describe the reason (3 to 1000 characters).' });
+  await db.query(`INSERT INTO user_reports (reporter_id, reported_user_id, reason, status) VALUES ($1,$2,$3,'pending')`, [req.user.id, target, reason]);
+  res.status(201).json({ ok: true });
+});
+
+router.post('/block', async (req, res) => {
+  const target = parseInt(req.body.user_id, 10);
+  if (!target || target === req.user.id) return res.status(400).json({ error: 'Invalid user.' });
+  await db.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.user.id, target]);
+  res.json({ ok: true });
+});
+
+router.get('/blocks', async (req, res) => {
+  const r = await db.query(`SELECT u.user_id, u.full_name FROM blocks b JOIN users u ON u.user_id = b.blocked_id WHERE b.blocker_id = $1`, [req.user.id]);
+  res.json(r.rows);
+});
+
+router.delete('/block/:id', async (req, res) => {
+  await db.query('DELETE FROM blocks WHERE blocker_id=$1 AND blocked_id=$2', [req.user.id, req.params.id]);
+  res.json({ ok: true });
+});
+
+module.exports = router;

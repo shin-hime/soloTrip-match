@@ -1,0 +1,162 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoloTrip Match</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#14213d;--mut:#5b6785;--line:#d9deea;--acc:#1f3cff}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1424;--card:#171f36;--ink:#eef1fa;--mut:#9aa6c4;--line:#2a3558}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Helvetica Neue",Arial,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;background:var(--card);border-bottom:1px solid var(--line)}
+header b{font-size:18px}header span{color:var(--acc)}
+nav{flex-wrap:wrap;display:flex;gap:6px;padding:12px 20px}
+nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 16px;border-radius:8px;cursor:pointer}
+nav button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+main{max-width:720px;margin:0 auto;padding:0 20px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{margin-top:16px;padding:10px 18px;border:0;border-radius:8px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line);margin:0 0 0 8px;padding:6px 12px;font-weight:400}
+.trip{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.trip small{color:var(--mut)}.msg{font-size:13px;margin-top:10px;min-height:18px}.hide{display:none}.score{font-weight:700;color:var(--acc);font-size:20px}.tag{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:2px 10px;margin:2px 4px 2px 0;font-size:12px}.flt{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}@media(max-width:560px){.flt{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+</style></head><body>
+<header><b>Solo<span>Trip</span> Match</b><div><span id="who" style="color:var(--mut)"></span> <button class="btn sec" id="out">Log out</button></div></header>
+<nav><button id="t1" class="on">My Profile</button><button id="t2">My Trips</button><button id="t3">Discover</button><button id="t4">Matches</button><button id="t5">Groups</button><button id="t6">Alerts</button><button id="t7" style="display:none">Admin</button></nav>
+<main>
+<section id="p1" class="card">
+  <label>Full name</label><input id="full_name">
+  <div class="row"><div><label>Age</label><input id="age" type="number" min="16"></div>
+  <div><label>Home city or country</label><input id="origin_location"></div></div>
+  <label>Bio</label><textarea id="bio" rows="3"></textarea>
+  <div class="row"><div><label>Budget range</label><select id="budget_range"><option value="">Select</option><option>Under $500</option><option>$500 - $1,000</option><option>$1,000 - $2,500</option><option>Over $2,500</option></select></div>
+  <div><label>Profile picture URL</label><input id="avatar_url" placeholder="https://"></div></div>
+  <label>Travel styles (comma separated)</label><input id="travel_styles" placeholder="Backpacking, Relaxed, Adventure">
+  <label>Interests (comma separated)</label><input id="interests" placeholder="Beach, Food, Hiking">
+  <label><input type="checkbox" id="hide" style="width:auto"> Hide my contact information until I match</label>
+  <button class="btn" id="saveP">Save profile</button><div class="msg" id="mP"></div>
+</section>
+<section id="p2" class="hide">
+  <div class="card"><b id="formTitle">Create a trip</b>
+    <div class="row"><div><label>Destination</label><input id="destination"></div><div><label>Traveling from</label><input id="traveling_from"></div></div>
+    <div class="row"><div><label>Departure date</label><input id="departure_date" type="date"></div><div><label>Return date</label><input id="return_date" type="date"></div></div>
+    <div class="row"><div><label>Budget (USD)</label><input id="budget_usd" type="number" min="0"></div><div><label>Travelers you want to meet</label><input id="looking_for_count" type="number" min="1" max="10"></div></div>
+    <button class="btn" id="saveT">Post trip</button><button class="btn sec" id="cancelEdit" style="display:none">Cancel edit</button><div class="msg" id="mT"></div>
+  </div>
+  <div id="trips"></div>
+</section>
+<section id="p3" class="hide">
+  <div class="card"><b>Find travelers</b>
+    <div class="flt">
+      <div><label>Min age</label><input id="f_amin" type="number"></div><div><label>Max age</label><input id="f_amax" type="number"></div>
+      <div><label>Max budget (USD)</label><input id="f_bmax" type="number"></div><div><label>Interest</label><input id="f_int"></div><div><label>Travel style</label><input id="f_sty"></div>
+    </div>
+    <button class="btn" id="search">Search</button><div class="msg" id="mD"></div>
+  </div>
+  <div id="cards"></div>
+</section>
+<section id="p4" class="hide"><div id="matches"></div></section>
+<section id="p5" class="hide">
+  <div class="card"><b>Create a trip group</b>
+    <div class="row"><div><label>Destination</label><input id="g_dest"></div><div><label>Max members</label><input id="g_max" type="number" min="2" max="20" value="6"></div></div>
+    <div class="row"><div><label>Start date</label><input id="g_start" type="date"></div><div><label>End date</label><input id="g_end" type="date"></div></div>
+    <button class="btn" id="g_create">Create group</button><div class="msg" id="mG"></div></div>
+  <div id="groups"></div>
+</section>
+<section id="p6" class="hide"><div id="alerts"></div></section>
+<section id="p7" class="hide"><div id="admin"></div></section>
+<section id="p8" class="hide"><div class="card">
+  <button class="btn sec" id="chatBack" style="margin:0 10px 0 0">Back</button><b id="chatTitle"></b>
+  <div id="chatBox" style="height:320px;overflow:auto;margin:12px 0;padding:8px;border:1px solid var(--line);border-radius:8px"></div>
+  <div style="display:flex;gap:8px"><input id="chatIn" maxlength="1000" placeholder="Type a message"><button class="btn" style="margin:0" id="chatSend">Send</button></div>
+  <div class="msg" id="mC"></div></div></section>
+</main>
+<script>
+var T=localStorage.getItem('token'),$=function(i){return document.getElementById(i)},editing=null,trips=[];
+if(!T)location.href='/';
+function api(m,u,b){return fetch(u,{method:m,headers:{'Content-Type':'application/json',Authorization:'Bearer '+T},body:b?JSON.stringify(b):undefined}).then(function(r){
+  if(r.status===401){localStorage.removeItem('token');location.href='/';}
+  return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Error');return d;});});}
+function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML;}
+function tab(n){for(var i=1;i<=8;i++){$('p'+i).classList.toggle('hide',n!==i);var b=$('t'+i);if(b)b.classList.toggle('on',n===i);}if(n!==8)clearInterval(poll);if(n===2)loadTrips();if(n===3)discover();if(n===4)loadMatches();if(n===5)loadGroups();if(n===6)loadAlerts();if(n===7)loadAdmin();}
+[1,2,3,4,5,6,7].forEach(function(n){$('t'+n).onclick=function(){tab(n)};});
+$('out').onclick=function(){localStorage.removeItem('token');location.href='/';};
+var PF=['full_name','age','origin_location','bio','budget_range','avatar_url'];
+api('GET','/api/profile').then(function(u){
+  $('who').textContent=u.full_name;PF.forEach(function(k){$(k).value=u[k]==null?'':u[k]});
+  $('travel_styles').value=(u.travel_styles||[]).join(', ');$('interests').value=(u.interests||[]).join(', ');
+  $('hide').checked=u.hide_contact_info!==false;});
+function csv(v){return v.split(',').map(function(s){return s.trim()}).filter(Boolean)}
+$('saveP').onclick=function(){
+  var b={};PF.forEach(function(k){b[k]=$(k).value});b.travel_styles=csv($('travel_styles').value);b.interests=csv($('interests').value);b.hide_contact_info=$('hide').checked;
+  api('PUT','/api/profile',b).then(function(u){$('who').textContent=u.full_name;$('mP').textContent='Profile saved.'}).catch(function(e){$('mP').textContent=e.message});};
+var TF=['destination','traveling_from','departure_date','return_date','budget_usd','looking_for_count'];
+function resetForm(){editing=null;TF.forEach(function(k){$(k).value=''});$('formTitle').textContent='Create a trip';$('saveT').textContent='Post trip';$('cancelEdit').style.display='none';}
+$('cancelEdit').onclick=resetForm;
+$('saveT').onclick=function(){
+  var b={};TF.forEach(function(k){b[k]=$(k).value});
+  api(editing?'PUT':'POST',editing?'/api/trips/'+editing:'/api/trips',b).then(function(){$('mT').textContent=editing?'Trip updated.':'Trip posted.';resetForm();loadTrips();}).catch(function(e){$('mT').textContent=e.message});};
+function loadTrips(){api('GET','/api/trips/mine').then(function(r){trips=r;
+  $('trips').innerHTML=r.length?r.map(function(t,i){return '<div class="card trip"><div><b>'+esc(t.destination)+'</b><br><small>From '+esc(t.traveling_from)+' | '+esc(t.departure_date)+' to '+esc(t.return_date)+(t.budget_usd?' | $'+esc(t.budget_usd):'')+(t.looking_for_count?' | Looking for '+esc(t.looking_for_count):'')+'</small></div><div><button class="btn sec" data-e="'+i+'">Edit</button><button class="btn sec" data-d="'+t.trip_id+'">Delete</button></div></div>'}).join(''):'<div class="card"><small>No trips yet.</small></div>';});}
+$('trips').onclick=function(e){
+  var d=e.target.getAttribute('data-d'),i=e.target.getAttribute('data-e');
+  if(d&&confirm('Delete this trip?'))api('DELETE','/api/trips/'+d).then(loadTrips);
+  if(i!==null){var t=trips[i];editing=t.trip_id;TF.forEach(function(k){$(k).value=t[k]==null?'':t[k]});$('formTitle').textContent='Edit trip';$('saveT').textContent='Save changes';$('cancelEdit').style.display='inline-block';window.scrollTo(0,0);}};
+
+var found=[];
+function tags(a){return (a||[]).map(function(x){return '<span class="tag">'+esc(x)+'</span>'}).join('')}
+function discover(){
+  var q=[['age_min','f_amin'],['age_max','f_amax'],['budget_max','f_bmax'],['interest','f_int'],['style','f_sty']].map(function(p){var v=$(p[1]).value.trim();return v?p[0]+'='+encodeURIComponent(v):''}).filter(Boolean).join('&');
+  api('GET','/api/discover'+(q?'?'+q:'')).then(function(r){found=r;
+    $('mD').textContent=r.length?'':'No travelers found. Post an open trip first, then check again.';
+    $('cards').innerHTML=r.map(function(c){return '<div class="card" id="c'+c.user_id+'"><div class="trip"><div><b>'+esc(c.full_name)+(c.age?', '+esc(c.age):'')+'</b><br><small>'+esc(c.origin_location||'')+' | '+esc(c.destination)+' | '+esc(c.departure_date)+' to '+esc(c.return_date)+'</small></div><div class="score">'+c.score+'%</div></div>'
+      +(c.bio?'<p>'+esc(c.bio)+'</p>':'')+'<div>'+tags(c.interests)+tags(c.travel_styles)+'</div><small>'+c.overlap_days+' overlapping days'+(c.shared_interests.length?' | Shared interests: '+esc(c.shared_interests.join(', ')):'')+'</small>'
+      +'<div><button class="btn" data-l="'+c.user_id+'">Like</button><button class="btn sec" style="margin-top:16px" data-s="'+c.user_id+'">Skip</button><button class="btn sec" style="margin-top:16px" data-r="'+c.user_id+'">Report</button><button class="btn sec" style="margin-top:16px" data-b="'+c.user_id+'">Block</button></div></div>'}).join('');}).catch(function(e){$('mD').textContent=e.message});}
+$('search').onclick=discover;
+$('cards').onclick=function(e){
+  var l=e.target.getAttribute('data-l'),s=e.target.getAttribute('data-s'),id=l||s;if(!id)return;
+  api('POST','/api/likes',{user_id:id,action:l?'like':'skip'}).then(function(r){
+    var el=$('c'+id);el.innerHTML=r.matched?'<b>It is a match.</b> Open the Matches tab to see your new travel partner.':'<small>'+(l?'Like sent.':'Skipped.')+'</small>';
+    setTimeout(function(){el.remove()},1800);}).catch(function(e){$('mD').textContent=e.message});};
+function loadMatches(){api('GET','/api/likes/matches').then(function(r){
+  $('matches').innerHTML=r.length?r.map(function(m){return '<div class="card"><b>'+esc(m.full_name)+(m.age?', '+esc(m.age):'')+'</b><br><small>'+esc(m.origin_location||'')+'</small>'+(m.bio?'<p>'+esc(m.bio)+'</p>':'')+'<div>'+tags(m.interests)+'</div>'+(m.email?'<small>Contact: '+esc(m.email)+'</small>':'<small>Contact details are hidden. Use in-app chat.</small>')+'<div>'+(m.conversation_id?'<button class="btn" data-c="'+m.conversation_id+'" data-n="'+esc(m.full_name)+'">Chat</button>':'')+'<button class="btn sec" style="margin-top:16px" data-r="'+m.user_id+'">Report</button><button class="btn sec" style="margin-top:16px" data-b="'+m.user_id+'">Block</button></div></div>'}).join(''):'<div class="card"><small>No matches yet. Like travelers in Discover.</small></div>';});}
+
+var ME=null,chat=null,poll=null,backTab=4;
+api('GET','/api/auth/me').then(function(u){ME=u;if(u.role==='admin')$('t7').style.display='inline-block';});
+function fmt(d){return new Date(d).toLocaleString()}
+function openChat(base,title,back){chat=base;backTab=back;$('chatTitle').textContent=title;$('chatBox').innerHTML='';tab(8);loadChat();clearInterval(poll);poll=setInterval(loadChat,3000);}
+function loadChat(){if(!chat)return;api('GET',chat).then(function(r){var box=$('chatBox'),n=r.length+':'+(r.length?r[r.length-1].message_id:0);if(box.getAttribute('data-n')===n)return;box.setAttribute('data-n',n);
+  box.innerHTML=r.map(function(m){var me=ME&&m.sender_id===ME.user_id;return '<div style="text-align:'+(me?'right':'left')+';margin:6px 0"><small style="color:var(--mut)">'+esc(me?'You':m.sender_name)+' | '+esc(fmt(m.sent_at))+'</small><br><span style="display:inline-block;padding:6px 10px;border-radius:10px;border:1px solid var(--line)">'+esc(m.content)+'</span></div>'}).join('');box.scrollTop=box.scrollHeight;}).catch(function(e){$('mC').textContent=e.message});}
+$('chatSend').onclick=function(){var v=$('chatIn').value.trim();if(!v)return;api('POST',chat,{content:v}).then(function(){$('chatIn').value='';$('mC').textContent='';loadChat();}).catch(function(e){$('mC').textContent=e.message});};
+$('chatIn').onkeydown=function(e){if(e.key==='Enter')$('chatSend').onclick();};
+$('chatBack').onclick=function(){tab(backTab)};
+function safety(e,after){
+  var r=e.target.getAttribute('data-r'),b=e.target.getAttribute('data-b');
+  if(r){var why=prompt('Why are you reporting this user?');if(why)api('POST','/api/safety/report',{user_id:r,reason:why}).then(function(){alert('Report sent. Our admin will review it.')}).catch(function(x){alert(x.message)});}
+  if(b&&confirm('Block this user? You will no longer see each other.'))api('POST','/api/safety/block',{user_id:b}).then(after);}
+$('cards').addEventListener('click',function(e){safety(e,discover)});
+$('matches').addEventListener('click',function(e){
+  var c=e.target.getAttribute('data-c');if(c)openChat('/api/chat/'+c+'/messages',e.target.getAttribute('data-n'),4);
+  safety(e,loadMatches);});
+function loadGroups(){api('GET','/api/groups').then(function(r){
+  $('groups').innerHTML=r.length?r.map(function(g){return '<div class="card trip"><div><b>'+esc(g.destination)+'</b><br><small>'+esc(g.start_date)+' to '+esc(g.end_date)+' | '+g.member_count+'/'+esc(g.max_members)+' members | Created by '+esc(g.creator_name)+'</small></div><div>'
+   +(g.is_member?'<button class="btn" style="margin:0" data-o="'+g.group_id+'" data-n="'+esc(g.destination)+'">Open chat</button><button class="btn sec" data-lv="'+g.group_id+'">Leave</button>':'<button class="btn" style="margin:0" data-j="'+g.group_id+'">Join group</button>')+'</div></div>'}).join(''):'<div class="card"><small>No groups yet. Create the first one.</small></div>';});}
+$('g_create').onclick=function(){api('POST','/api/groups',{destination:$('g_dest').value,start_date:$('g_start').value,end_date:$('g_end').value,max_members:$('g_max').value}).then(function(){$('mG').textContent='Group created.';loadGroups();}).catch(function(e){$('mG').textContent=e.message});};
+$('groups').onclick=function(e){var j=e.target.getAttribute('data-j'),o=e.target.getAttribute('data-o'),l=e.target.getAttribute('data-lv');
+  if(j)api('POST','/api/groups/'+j+'/join').then(loadGroups).catch(function(x){alert(x.message)});
+  if(l)api('POST','/api/groups/'+l+'/leave').then(loadGroups);
+  if(o)openChat('/api/groups/'+o+'/messages','Group: '+e.target.getAttribute('data-n'),5);};
+function bell(u){$('t6').textContent='Alerts'+(u?' ('+u+')':'')}
+function loadAlerts(){api('GET','/api/notifications').then(function(r){
+  $('alerts').innerHTML=r.items.length?r.items.map(function(n){return '<div class="card"><b>'+esc(n.title)+(n.is_read?'':' (new)')+'</b><br><small>'+esc(n.message)+' | '+esc(fmt(n.created_at))+'</small></div>'}).join(''):'<div class="card"><small>No notifications.</small></div>';
+  if(r.unread)api('POST','/api/notifications/read-all').then(function(){bell(0)});});}
+function refreshBell(){api('GET','/api/notifications').then(function(r){bell(r.unread)}).catch(function(){});}
+refreshBell();setInterval(refreshBell,20000);
+function loadAdmin(){api('GET','/api/admin/reports').then(function(r){
+  $('admin').innerHTML=r.length?r.map(function(p){return '<div class="card"><b>'+esc(p.reporter_name)+' reported '+esc(p.reported_name)+'</b> ('+esc(p.status)+')<p>'+esc(p.reason)+'</p><small>'+esc(fmt(p.created_at))+(p.reported_active===false?' | Account suspended':'')+'</small><div>'
+   +'<button class="btn sec" style="margin-top:12px" data-a="resolved" data-id="'+p.report_id+'">Resolve</button><button class="btn sec" style="margin-top:12px" data-a="suspend" data-id="'+p.report_id+'">Resolve and suspend user</button>'
+   +(p.reported_active===false?'<button class="btn sec" style="margin-top:12px" data-a="reactivate" data-u="'+p.reported_user_id+'">Reactivate user</button>':'')+'</div></div>'}).join(''):'<div class="card"><small>No reports.</small></div>';}).catch(function(e){$('admin').innerHTML='<div class="card">'+esc(e.message)+'</div>'});}
+$('admin').onclick=function(e){var a=e.target.getAttribute('data-a'),id=e.target.getAttribute('data-id');if(!a)return;
+  var p=a==='reactivate'?api('PUT','/api/admin/users/'+e.target.getAttribute('data-u')+'/active',{is_active:true}):api('PUT','/api/admin/reports/'+id,{status:'resolved',suspend:a==='suspend'});
+  p.then(loadAdmin).catch(function(x){alert(x.message)});};
+</script></body></html>
