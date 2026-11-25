@@ -3,7 +3,7 @@
 // so the UI is fully usable before the Express API exists.
 import { useAuth } from "@/store/auth";
 import type {
-  AppNotification, AuthResponse, Conversation, DirectMessage, MatchedTraveler, MatchFilters,
+  AppNotification, AuthResponse, Conversation, DirectMessage, GroupMessage, MatchedTraveler, MatchFilters,
   NewGroupInput, NewTripInput, Trip, TripGroup, User, UserReport, ReportStatus,
 } from "@/types";
 import {
@@ -229,6 +229,53 @@ export const api = {
     USE_MOCK
       ? wait([...mockGroups])
       : request<Partial<TripGroup>[]>("/groups").then((rows) => (Array.isArray(rows) ? rows.map(normalizeGroup) : [])),
+  group: (id: number): Promise<TripGroup> => {
+    if (USE_MOCK) {
+      const found = mockGroups.find((x) => x.group_id === id);
+      if (!found) return Promise.reject(new ApiError("Group not found.", 404));
+      return wait({ ...found });
+    }
+    return request<Partial<TripGroup>>(`/groups/${id}`).then(normalizeGroup);
+  },
+  groupMessages: (id: number): Promise<GroupMessage[]> => {
+    if (USE_MOCK) return wait([]);
+    return request<Partial<GroupMessage>[]>(`/groups/${id}/messages`).then((rows) =>
+      Array.isArray(rows)
+        ? rows.map((m) => ({
+            message_id: Number(m.message_id ?? 0),
+            group_id: Number(m.group_id ?? id),
+            sender_id: Number(m.sender_id ?? 0),
+            sender_name: m.sender_name ?? "Traveler",
+            avatar_url: m.avatar_url ?? null,
+            content: m.content ?? "",
+            sent_at: m.sent_at ?? new Date().toISOString(),
+          }))
+        : []
+    );
+  },
+  sendGroupMessage: (id: number, content: string): Promise<GroupMessage> => {
+    const me = useAuth.getState().user;
+    if (USE_MOCK) {
+      return wait({
+        message_id: Date.now(),
+        group_id: id,
+        sender_id: me?.user_id ?? mockMe.user_id,
+        sender_name: me?.full_name ?? mockMe.full_name,
+        avatar_url: me?.avatar_url ?? null,
+        content,
+        sent_at: new Date().toISOString(),
+      }, 100);
+    }
+    return request<Partial<GroupMessage>>(`/groups/${id}/messages`, { method: "POST", json: { content } }).then((m) => ({
+      message_id: Number(m.message_id ?? Date.now()),
+      group_id: Number(m.group_id ?? id),
+      sender_id: Number(m.sender_id ?? me?.user_id ?? 0),
+      sender_name: m.sender_name ?? me?.full_name ?? "You",
+      avatar_url: m.avatar_url ?? me?.avatar_url ?? null,
+      content: m.content ?? content,
+      sent_at: m.sent_at ?? new Date().toISOString(),
+    }));
+  },
   createGroup: (input: NewGroupInput): Promise<TripGroup> => {
     if (!USE_MOCK) {
       return request<Partial<TripGroup>>("/groups", { method: "POST", json: input }).then((r) =>

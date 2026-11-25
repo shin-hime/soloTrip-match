@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
 import { api, USE_MOCK } from "@/lib/api";
 import { useAuth } from "@/store/auth";
 import { Button } from "@/components/ui/Button";
@@ -46,17 +47,24 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <section className="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex"
-        style={{ background: "linear-gradient(180deg,#3a4a6b 0%,#6b5a63 45%,#1a1626 100%)" }}>
-        <div className="flex items-center gap-2.5">
+      <section
+        className="relative hidden flex-col justify-between overflow-hidden bg-cover bg-center p-10 lg:flex"
+        style={{ backgroundImage: "url('/images/pic1.jpg')" }}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ background: "linear-gradient(180deg, rgba(10,14,30,0.62) 0%, rgba(16,18,34,0.42) 45%, rgba(10,12,24,0.90) 100%)" }}
+        />
+        <div className="relative z-10 flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-violet-brand font-bold">T</span>
           <span className="font-bold">TravelMate</span>
         </div>
-        <div className="max-w-sm">
+        <div className="relative z-10 max-w-sm">
           <h1 className="font-serif text-6xl leading-[1.05]">
             Find your <span className="italic text-orange-300">perfect</span> travel partner
           </h1>
-          <p className="mt-5 text-white/75">Connect with like-minded travelers heading to the same destination.</p>
+          <p className="mt-5 text-white/85">Connect with like-minded travelers heading to the same destination.</p>
         </div>
       </section>
 
@@ -84,7 +92,7 @@ export default function LoginPage() {
             <div className="relative">
               <input className="field pr-10" type={show ? "text" : "password"} placeholder="Password" autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} aria-label="Password" />
               <button type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted">
-                {show ? "🙈" : "👁"}
+                {show ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
               </button>
             </div>
 

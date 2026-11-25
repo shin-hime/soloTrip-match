@@ -3,19 +3,44 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell, Compass, MessageCircle, Plane, User, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { closeSocket } from "@/lib/socket";
 import { cn, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
+import type { AppNotification } from "@/types";
 import { Avatar } from "./ui/Avatar";
 
 const links = [
-  { href: "/discover", label: "Discover", icon: "🧭" },
-  { href: "/trips/new", label: "New Trip", icon: "✈️" },
-  { href: "/messages", label: "Messages", icon: "💬" },
-  { href: "/groups", label: "Groups", icon: "👥" },
-  { href: "/profile", label: "Profile", icon: "👤" },
+  { href: "/discover", label: "Discover", Icon: Compass },
+  { href: "/trips/new", label: "New Trip", Icon: Plane },
+  { href: "/messages", label: "Messages", Icon: MessageCircle },
+  { href: "/groups", label: "Groups", Icon: Users },
+  { href: "/profile", label: "Profile", Icon: User },
 ];
+
+function notificationHref(n: AppNotification & { group_id?: number | null }): string {
+  const type = (n.type ?? "").toLowerCase();
+  const title = (n.title ?? "").toLowerCase();
+  if (
+    type === "match" ||
+    type === "message" ||
+    type === "chat_request" ||
+    type === "request_accepted" ||
+    title.includes("match") ||
+    title.includes("chat") ||
+    title.includes("message")
+  ) {
+    return "/messages";
+  }
+  if (type === "group" || title.includes("group")) {
+    return n.group_id ? `/groups/${n.group_id}` : "/groups";
+  }
+  if (type === "like" || title.includes("like")) {
+    return "/discover";
+  }
+  return "/discover";
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -37,6 +62,12 @@ export function Navbar() {
     mutationFn: api.markNotificationRead,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
+
+  const handleNotificationClick = (n: AppNotification) => {
+    if (!n.is_read) readNote.mutate(n.notification_id);
+    setBellOpen(false);
+    router.push(notificationHref(n));
+  };
 
   const signOut = () => {
     closeSocket();
@@ -66,7 +97,7 @@ export function Navbar() {
                   active ? "border-brand/50 bg-brand-soft text-brand" : "border-transparent text-muted hover:text-white"
                 )}
               >
-                <span aria-hidden>{l.icon}</span>
+                <l.Icon size={16} aria-hidden />
                 <span className="hidden md:inline">{l.label}</span>
                 {l.href === "/messages" && unread > 0 && (
                   <span className="rounded-full bg-violet-brand px-1.5 text-[11px] font-bold text-white">{unread}</span>
@@ -82,17 +113,17 @@ export function Navbar() {
             onClick={() => { setBellOpen((o) => !o); setMenuOpen(false); }}
             className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-ink-800"
           >
-            🔔
+            <Bell size={16} aria-hidden />
             {hasNewNotes && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand" />}
           </button>
           {bellOpen && (
-            <div className="panel absolute right-0 mt-2 w-72 p-2 shadow-xl">
+            <div className="absolute right-0 z-50 mt-2 max-h-96 w-72 overflow-y-auto rounded-2xl border border-white/10 bg-ink-800 p-2 shadow-xl">
               {noteList.length === 0 && <p className="p-3 text-sm text-muted">You're all caught up.</p>}
               {noteList.map((n) => (
                 <button
                   key={n.notification_id}
-                  onClick={() => !n.is_read && readNote.mutate(n.notification_id)}
-                  className="block w-full rounded-lg p-3 text-left hover:bg-white/5"
+                  onClick={() => handleNotificationClick(n)}
+                  className="block w-full rounded-lg p-3 text-left transition hover:bg-white/5"
                 >
                   <p className="flex items-center gap-2 text-sm font-semibold">
                     {!n.is_read && <span className="h-1.5 w-1.5 rounded-full bg-brand" />}
@@ -111,7 +142,7 @@ export function Navbar() {
             <Avatar name={user?.full_name ?? "You"} src={user?.avatar_url} size={36} className="rounded-full ring-2 ring-brand/40" />
           </button>
           {menuOpen && (
-            <div className="panel absolute right-0 mt-2 w-44 p-1.5 shadow-xl">
+            <div className="absolute right-0 z-50 mt-2 w-44 rounded-2xl border border-white/10 bg-ink-800 p-1.5 shadow-xl">
               <Link href="/profile" onClick={() => setMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5">Your profile</Link>
               {user?.role === "admin" && (
                 <Link href="/admin" onClick={() => setMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5">Moderation</Link>

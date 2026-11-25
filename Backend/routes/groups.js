@@ -73,21 +73,42 @@ router.post('/:id/leave', async (req, res) => {
   res.json({ ok: true });
 });
 
+router.get('/:id', async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT g.group_id, g.destination, g.start_date::text, g.end_date::text, g.max_members, g.creator_id, g.cover_image_url, g.created_at, u.full_name AS creator_name,
+              (SELECT count(*)::int FROM group_members m WHERE m.group_id = g.group_id) AS member_count,
+              COALESCE((SELECT json_agg(json_build_object('user_id', u2.user_id, 'full_name', u2.full_name, 'avatar_url', u2.avatar_url, 'role', m.role) ORDER BY m.joined_at ASC)
+                        FROM group_members m JOIN users u2 ON u2.user_id = m.user_id WHERE m.group_id = g.group_id), '[]'::json) AS members,
+              EXISTS (SELECT 1 FROM group_members m WHERE m.group_id = g.group_id AND m.user_id = $1) AS is_member
+       FROM trip_groups g JOIN users u ON u.user_id = g.creator_id
+       WHERE g.group_id = $2`, [req.user.id, req.params.id]);
+    if (!r.rowCount) return res.status(404).json({ error: 'Group not found.' });
+    res.json(r.rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
+});
+
 router.get('/:id/messages', async (req, res) => {
   if (!(await isMember(req.params.id, req.user.id))) return res.status(403).json({ error: 'Join the group first.' });
   const r = await db.query(
-    `SELECT m.message_id, m.sender_id, u.full_name AS sender_name, m.content, m.sent_at
+    `SELECT m.message_id, m.group_id, m.sender_id, u.full_name AS sender_name, u.avatar_url, m.content, m.sent_at
      FROM group_messages m JOIN users u ON u.user_id = m.sender_id
      WHERE m.group_id = $1 ORDER BY m.message_id DESC LIMIT 100`, [req.params.id]);
   res.json(r.rows.reverse());
 });
 
 router.post('/:id/messages', async (req, res) => {
-  const content = (req.body.content || '').trim();
-  if (!content || content.length > 1000) return res.status(400).json({ error: 'Message must be 1 to 1000 characters.' });
-  if (!(await isMember(req.params.id, req.user.id))) return res.status(403).json({ error: 'Join the group first.' });
-  await db.query('INSERT INTO group_messages (group_id, sender_id, content) VALUES ($1,$2,$3)', [req.params.id, req.user.id, content]);
-  res.status(201).json({ ok: true });
+  try {
+    const content = (req.body.content || '').trim();
+    if (!content || content.length > 1000) return res.status(400).json({ error: 'Message must be 1 to 1000 characters.' });
+    if (!(await isMember(req.params.id, req.user.id))) return res.status(403).json({ error: 'Join the group first.' });
+    const ins = await db.query(
+      `INSERT INTO group_messages (group_id, sender_id, content) VALUES ($1,$2,$3)
+       RETURNING message_id, group_id, sender_id, content, sent_at`,
+      [req.params.id, req.user.id, content]);
+    const u = await db.query('SELECT full_name AS sender_name, avatar_url FROM users WHERE user_id = $1', [req.user.id]);
+    res.status(201).json({ ok: true, ...ins.rows[0], ...(u.rows[0] || {}) });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
 
 module.exports = router;

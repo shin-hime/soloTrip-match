@@ -1,8 +1,10 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar, MessageSquare, Plus, Users } from "lucide-react";
 import { api } from "@/lib/api";
-import { fmtRange, gradientFor } from "@/lib/utils";
+import { cn, fmtRange, gradientFor } from "@/lib/utils";
 import type { NewGroupInput } from "@/types";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -48,6 +50,7 @@ function NewGroupModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function GroupsPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [modal, setModal] = useState(false);
   const groups = useQuery({ queryKey: ["groups"], queryFn: api.groups });
@@ -62,7 +65,9 @@ export default function GroupsPage() {
           <h1 className="font-serif text-4xl">Trip <span className="italic text-brand">Groups</span></h1>
           <p className="mt-1 text-sm text-muted">Join travelers heading to the same destination</p>
         </div>
-        <Button onClick={() => setModal(true)}>+ New group</Button>
+        <Button onClick={() => setModal(true)} className="inline-flex items-center gap-1.5">
+          <Plus size={16} aria-hidden /> New group
+        </Button>
       </div>
 
       {groups.isLoading && <p className="text-sm text-muted">Loading groups…</p>}
@@ -74,17 +79,50 @@ export default function GroupsPage() {
           const members = Array.isArray(g.members) ? g.members : [];
           const full = members.length >= g.max_members;
           const pct = g.max_members > 0 ? (members.length / g.max_members) * 100 : 0;
+          const openHub = () => router.push(`/groups/${g.group_id}`);
           return (
-            <article key={g.group_id} className="panel overflow-hidden">
+            <article
+              key={g.group_id}
+              onClick={g.is_member ? openHub : undefined}
+              onKeyDown={g.is_member ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openHub(); } } : undefined}
+              role={g.is_member ? "button" : undefined}
+              tabIndex={g.is_member ? 0 : undefined}
+              className={cn(
+                "panel overflow-hidden transition",
+                g.is_member && "cursor-pointer hover:border-brand/40"
+              )}
+            >
               <div className="relative flex h-32 items-center justify-between p-5" style={{ background: gradientFor(g.destination) }}>
                 <div className="rounded-lg bg-black/25 px-3 py-2 backdrop-blur-sm">
                   <h2 className="text-lg font-bold">{g.destination}</h2>
-                  <p className="text-xs text-white/80">📅 {fmtRange(g.start_date, g.end_date)} &nbsp; 👥 {members.length}/{g.max_members}</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-white/80">
+                    <span className="inline-flex items-center gap-1"><Calendar size={13} aria-hidden /> {fmtRange(g.start_date, g.end_date)}</span>
+                    <span className="inline-flex items-center gap-1"><Users size={13} aria-hidden /> {members.length}/{g.max_members}</span>
+                  </p>
                 </div>
                 {g.is_member ? (
-                  <Button variant="outline" disabled={leave.isPending} onClick={() => leave.mutate(g.group_id)}>Leave</Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={(e) => { e.stopPropagation(); openHub(); }}
+                      className="inline-flex items-center gap-1.5"
+                    >
+                      <MessageSquare size={14} aria-hidden /> Open Hub
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={leave.isPending}
+                      onClick={(e) => { e.stopPropagation(); leave.mutate(g.group_id); }}
+                    >
+                      Leave
+                    </Button>
+                  </div>
                 ) : (
-                  <Button disabled={full || join.isPending} onClick={() => join.mutate(g.group_id)}>{full ? "Full" : "Join group"}</Button>
+                  <Button
+                    disabled={full || join.isPending}
+                    onClick={(e) => { e.stopPropagation(); join.mutate(g.group_id); }}
+                  >
+                    {full ? "Full" : "Join group"}
+                  </Button>
                 )}
               </div>
               <div className="flex items-center justify-between gap-4 p-4">

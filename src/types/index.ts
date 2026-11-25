@@ -143,6 +143,16 @@ export interface NewGroupInput {
   max_members: number;
 }
 
+export interface GroupMessage {
+  message_id: number;
+  group_id: number;
+  sender_id: number;
+  sender_name: string;
+  avatar_url: string | null;
+  content: string;
+  sent_at: string;
+}
+
 export interface AppNotification {
   notification_id: number;
   user_id: number;
