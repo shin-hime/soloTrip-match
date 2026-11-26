@@ -7,6 +7,7 @@ import { clockTime, cn, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import type { DirectMessage } from "@/types";
 import { Avatar } from "@/components/ui/Avatar";
+import { UserSafetyMenu } from "@/components/UserSafetyMenu";
 
 export default function MessagesPage() {
   const qc = useQueryClient();
@@ -14,6 +15,7 @@ export default function MessagesPage() {
   const [active, setActive] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
   const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations });
@@ -65,6 +67,12 @@ export default function MessagesPage() {
 
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [msgs.data?.length, active]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
@@ -112,13 +120,25 @@ export default function MessagesPage() {
             <header className="flex items-center gap-3 border-b border-white/5 p-4">
               <button className="mr-1 text-muted md:hidden" aria-label="Back to conversations" onClick={() => setActive(null)}>←</button>
               <Avatar name={current.other_user.full_name} src={current.other_user.avatar_url} online={current.other_user.is_online} size={44} />
-              <div>
-                <p className="font-semibold">{current.other_user.full_name}</p>
-                <p className="text-sm text-brand">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{current.other_user.full_name}</p>
+                <p className="truncate text-sm text-brand">
                   {current.other_user.is_online ? "Online" : "Offline"}
                   {current.other_user.destination ? ` · ${current.other_user.destination}` : ""}
                 </p>
               </div>
+              <UserSafetyMenu
+                userId={current.other_user.user_id}
+                userName={current.other_user.full_name}
+                onReported={() => setToast(`Report submitted for ${current.other_user.full_name}.`)}
+                onBlocked={() => {
+                  const name = current.other_user.full_name;
+                  setActive(null);
+                  qc.invalidateQueries({ queryKey: ["conversations"] });
+                  qc.invalidateQueries({ queryKey: ["matches"] });
+                  setToast(`${name} has been blocked.`);
+                }}
+              />
             </header>
 
             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-5" aria-live="polite">
@@ -148,6 +168,11 @@ export default function MessagesPage() {
           <div className="m-auto text-center text-muted"><p className="text-4xl">💬</p><p className="mt-2 text-sm">Select a conversation to start chatting</p></div>
         )}
       </section>
+      {toast && (
+        <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-brand/40 bg-ink-800 px-4 py-2 text-sm shadow-xl">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

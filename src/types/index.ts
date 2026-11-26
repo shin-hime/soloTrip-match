@@ -169,6 +169,7 @@ export interface UserReport {
   reported_user_id: number;
   reporter_name?: string;
   reported_name?: string;
+  reported_active?: boolean;
   reason: string;
   status: ReportStatus;
   created_at: string;

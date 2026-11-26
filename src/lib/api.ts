@@ -315,10 +315,36 @@ export const api = {
     Object.assign(mockMe, patch);
     return wait({ ...mockMe }, 100);
   },
-  reportUser: (reported_user_id: number, reason: string): Promise<void> =>
-    USE_MOCK
-      ? wait(undefined)
-      : request("/safety/report", { method: "POST", json: { user_id: reported_user_id, reason } }).then(() => undefined),
+  reportUser: (reported_user_id: number, reason: string): Promise<void> => {
+    if (USE_MOCK) {
+      const targetName =
+        mockConversations.find((c) => c.other_user.user_id === reported_user_id)?.other_user.full_name ??
+        mockMatches.find((m) => m.user_id === reported_user_id)?.full_name ??
+        `User ${reported_user_id}`;
+      mockReports.unshift({
+        report_id: Date.now(),
+        reporter_id: mockMe.user_id,
+        reported_user_id,
+        reporter_name: mockMe.full_name,
+        reported_name: targetName,
+        reason,
+        status: "open",
+        created_at: new Date().toISOString(),
+      });
+      return wait(undefined, 150);
+    }
+    return request("/safety/report", { method: "POST", json: { user_id: reported_user_id, reason } }).then(() => undefined);
+  },
+  blockUser: (blocked_user_id: number): Promise<void> => {
+    if (USE_MOCK) {
+      const convIdx = mockConversations.findIndex((c) => c.other_user.user_id === blocked_user_id);
+      if (convIdx !== -1) mockConversations.splice(convIdx, 1);
+      const matchIdx = mockMatches.findIndex((m) => m.user_id === blocked_user_id);
+      if (matchIdx !== -1) mockMatches.splice(matchIdx, 1);
+      return wait(undefined, 150);
+    }
+    return request("/safety/block", { method: "POST", json: { user_id: blocked_user_id } }).then(() => undefined);
+  },
 
   // ---- notifications
   notifications: (): Promise<AppNotification[]> => {

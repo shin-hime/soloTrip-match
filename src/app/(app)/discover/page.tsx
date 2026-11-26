@@ -1,17 +1,19 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtRange, gradientFor } from "@/lib/utils";
 import type { MatchedTraveler } from "@/types";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
+import { UserSafetyMenu } from "@/components/UserSafetyMenu";
 
 function Photo({ name, className }: { name: string; className?: string }) {
   return <div className={className} style={{ background: gradientFor(name) }} />;
 }
 
 export default function DiscoverPage() {
+  const qc = useQueryClient();
   const trip = useQuery({ queryKey: ["active-trip"], queryFn: api.myActiveTrip });
   const [active, setActive] = useState<Record<string, boolean>>({});
   const [queue, setQueue] = useState<MatchedTraveler[]>([]);
@@ -137,9 +139,27 @@ export default function DiscoverPage() {
           <div className="panel overflow-hidden">
             <div className="relative h-52">
               <Photo name={current.destination} className="absolute inset-0" />
-              {(current.travel_styles ?? [])[0] && (
-                <span className="absolute right-3 top-3 rounded-full bg-black/40 px-3 py-1 text-xs text-brand">{current.travel_styles[0]}</span>
-              )}
+              <div className="absolute inset-x-3 top-3 z-10 flex items-center justify-between gap-2">
+                {(current.travel_styles ?? [])[0] ? (
+                  <span className="rounded-full bg-black/40 px-3 py-1 text-xs text-brand">{current.travel_styles[0]}</span>
+                ) : (
+                  <span />
+                )}
+                <UserSafetyMenu
+                  userId={current.user_id}
+                  userName={current.full_name}
+                  buttonClassName="h-8 w-8 rounded-full border-white/15 bg-black/45 text-white hover:bg-black/65"
+                  onReported={() => setToast(`Report submitted for ${current.full_name}.`)}
+                  onBlocked={() => {
+                    const blockedId = current.user_id;
+                    const blockedName = current.full_name;
+                    setQueue((q) => q.filter((x) => x.user_id !== blockedId));
+                    qc.invalidateQueries({ queryKey: ["matches"] });
+                    qc.invalidateQueries({ queryKey: ["conversations"] });
+                    setToast(`${blockedName} has been blocked.`);
+                  }}
+                />
+              </div>
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/75 to-transparent p-4">
                 <div>
                   <p className="font-serif text-2xl">{current.full_name}{current.age ? `, ${current.age}` : ""}</p>

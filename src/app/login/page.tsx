@@ -40,11 +40,6 @@ export default function LoginPage() {
     auth.mutate();
   };
 
-  const oauth = (p: "google" | "facebook") => {
-    if (USE_MOCK) return api.login("", "").then((r) => { setSession(r.token, r.user); router.replace("/discover"); });
-    window.location.href = api.oauthUrl(p);
-  };
-
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <section
@@ -74,15 +69,6 @@ export default function LoginPage() {
             <div>
               <h2 className="text-2xl font-bold">{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
               <p className="text-sm text-muted">{mode === "signin" ? "Sign in to continue exploring" : "Start finding travel partners"}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" onClick={() => oauth("google")}>Google</Button>
-              <Button type="button" variant="outline" onClick={() => oauth("facebook")}>Facebook</Button>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-muted">
-              <span className="h-px flex-1 bg-white/10" /> or continue with email <span className="h-px flex-1 bg-white/10" />
             </div>
 
             {mode === "signup" && (

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Compass, MessageCircle, Plane, User, Users } from "lucide-react";
 import { api } from "@/lib/api";
@@ -50,6 +50,35 @@ export function Navbar() {
   const logout = useAuth((s) => s.logout);
   const [bellOpen, setBellOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isAdmin = user?.role?.toLowerCase() === "admin";
+
+  useEffect(() => {
+    setBellOpen(false);
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!bellOpen && !menuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (bellOpen && bellRef.current && !bellRef.current.contains(t)) setBellOpen(false);
+      if (menuOpen && menuRef.current && !menuRef.current.contains(t)) setMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setBellOpen(false);
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [bellOpen, menuOpen]);
 
   const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations });
   const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications });
@@ -77,7 +106,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/5 bg-ink-900/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-ink-900/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
         <Link href="/discover" className="flex items-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-violet-brand text-sm font-bold">T</span>
@@ -107,7 +136,7 @@ export function Navbar() {
           })}
         </nav>
 
-        <div className="relative">
+        <div className="relative" ref={bellRef}>
           <button
             aria-label="Notifications"
             onClick={() => { setBellOpen((o) => !o); setMenuOpen(false); }}
@@ -137,15 +166,15 @@ export function Navbar() {
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button aria-label="Account menu" onClick={() => { setMenuOpen((o) => !o); setBellOpen(false); }}>
             <Avatar name={user?.full_name ?? "You"} src={user?.avatar_url} size={36} className="rounded-full ring-2 ring-brand/40" />
           </button>
           {menuOpen && (
             <div className="absolute right-0 z-50 mt-2 w-44 rounded-2xl border border-white/10 bg-ink-800 p-1.5 shadow-xl">
               <Link href="/profile" onClick={() => setMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5">Your profile</Link>
-              {user?.role === "admin" && (
-                <Link href="/admin" onClick={() => setMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5">Moderation</Link>
+              {isAdmin && (
+                <Link href="/moderation" onClick={() => setMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-white/5">Moderation</Link>
               )}
               <button onClick={signOut} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-white/5 hover:text-white">Sign out</button>
             </div>
