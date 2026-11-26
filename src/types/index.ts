@@ -182,6 +182,30 @@ export interface BlockedUser {
   created_at?: string | null;
 }
 
+export interface PublicUserProfile {
+  user_id: number;
+  full_name: string;
+  age: number | null;
+  origin_location: string | null;
+  avatar_url: string | null;
+  cover_photo_url: string | null;
+  bio: string | null;
+  travel_styles: string[];
+  budget_range: string | null;
+  interests: string[];
+  rating: number;
+  trips_count: number;
+  matches_count: number;
+  is_verified: boolean;
+  hide_contact_info: boolean;
+  contact_info: string | null;
+  trips: Trip[];
+  is_blocked: boolean;
+  is_matched: boolean;
+  conversation_id?: number | null;
+  request_status: "sent" | "received" | "none";
+}
+
 export interface AuthResponse {
   token: string;
   user: User;

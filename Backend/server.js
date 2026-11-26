@@ -10,6 +10,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
+app.use('/api/users', require('./routes/users'));
 app.use('/api/trips', require('./routes/trips'));
 app.use('/api/discover', require('./routes/discover'));
 app.use('/api/likes', require('./routes/likes'));

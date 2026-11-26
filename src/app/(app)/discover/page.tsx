@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -162,12 +163,29 @@ export default function DiscoverPage() {
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {(matches.data ?? []).map((u) => (
-            <button key={u.user_id} onClick={() => choose(u)}
-              className="panel overflow-hidden text-left transition hover:border-brand/40">
+            <div
+              key={u.user_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => choose(u)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  choose(u);
+                }
+              }}
+              className="panel cursor-pointer overflow-hidden text-left transition hover:border-brand/40"
+            >
               <div className="relative h-28">
                 <Photo name={u.destination} className="absolute inset-0" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                  <p className="font-semibold">{u.full_name}</p>
+                  <Link
+                    href={`/users/${u.user_id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-block font-semibold hover:text-brand hover:underline"
+                  >
+                    {u.full_name}
+                  </Link>
                   <p className="text-xs text-brand">📍 {u.destination}</p>
                 </div>
               </div>
@@ -180,7 +198,7 @@ export default function DiscoverPage() {
                   {(u.interests ?? []).slice(0, 2).map((i) => <Chip key={i} small active>{i}</Chip>)}
                 </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </section>
@@ -218,7 +236,9 @@ export default function DiscoverPage() {
               </div>
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/75 to-transparent p-4">
                 <div>
-                  <p className="font-serif text-2xl">{current.full_name}{current.age ? `, ${current.age}` : ""}</p>
+                  <Link href={`/users/${current.user_id}`} className="font-serif text-2xl hover:text-brand hover:underline">
+                    {current.full_name}{current.age ? `, ${current.age}` : ""}
+                  </Link>
                   <p className="text-xs text-brand">📍 {current.destination}</p>
                 </div>
                 <span className="rounded-full bg-black/40 px-2 py-1 text-xs">★ {Number(current.rating ?? 0).toFixed(1)}</span>

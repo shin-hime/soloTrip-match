@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Compass, MessageCircle, Plane, User, Users } from "lucide-react";
+import { Bell, Compass, MessageCircle, Plane, Shield, User, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { closeSocket } from "@/lib/socket";
 import { cn, timeAgo } from "@/lib/utils";
@@ -11,12 +11,16 @@ import { useAuth } from "@/store/auth";
 import type { AppNotification } from "@/types";
 import { Avatar } from "./ui/Avatar";
 
-const links = [
+const travelerLinks = [
   { href: "/discover", label: "Discover", Icon: Compass },
   { href: "/trips/new", label: "New Trip", Icon: Plane },
   { href: "/messages", label: "Messages", Icon: MessageCircle },
   { href: "/groups", label: "Groups", Icon: Users },
   { href: "/profile", label: "Profile", Icon: User },
+];
+
+const adminLinks = [
+  { href: "/moderation", label: "Moderation", Icon: Shield },
 ];
 
 function notificationHref(n: AppNotification & { group_id?: number | null }): string {
@@ -80,8 +84,9 @@ export function Navbar() {
     };
   }, [bellOpen, menuOpen]);
 
-  const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations });
+  const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations, enabled: !isAdmin });
   const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications });
+  const navLinks = isAdmin ? adminLinks : travelerLinks;
   const convList = Array.isArray(convs.data) ? convs.data : [];
   const noteList = Array.isArray(notes.data) ? notes.data : [];
   const unread = convList.reduce((n, c) => n + Number(c.unread_count ?? 0), 0);
@@ -108,7 +113,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-ink-900/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-        <Link href="/discover" className="flex items-center gap-2.5">
+        <Link href={isAdmin ? "/moderation" : "/discover"} className="flex items-center gap-2.5">
           <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-cyan-200 bg-gradient-to-br from-sky-300 via-blue-500 to-cyan-700 font-serif text-xl italic text-white shadow-[0_0_10px_#38bdf8,0_0_22px_#0ea5e9]">
   𝑺
 
@@ -122,8 +127,11 @@ export function Navbar() {
         </Link>
 
         <nav aria-label="Main" className="flex flex-1 gap-1 overflow-x-auto px-1 sm:px-4">
-          {links.map((l) => {
-            const active = pathname === l.href || pathname.startsWith(l.href + "/");
+          {navLinks.map((l) => {
+            const active =
+              pathname === l.href ||
+              pathname.startsWith(l.href + "/") ||
+              (l.href === "/moderation" && pathname === "/admin");
             return (
               <Link
                 key={l.href}

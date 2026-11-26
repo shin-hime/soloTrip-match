@@ -1,14 +1,16 @@
 "use client";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, UserCheck } from "lucide-react";
+import { Ban, Trash2, UserCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtRange, gradientFor } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
-import type { User } from "@/types";
+import type { Trip, User } from "@/types";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 const STYLES = ["Backpacker", "Budget", "Mid-range", "Luxury", "Adventure", "Cultural", "Mindful"];
 const INTERESTS = ["Beach", "Food", "Adventure", "Culture", "Shopping", "Hiking", "Diving", "Wellness", "Photography", "Nightlife"];
@@ -220,6 +222,8 @@ export default function ProfilePage() {
   const qc = useQueryClient();
   const setUser = useAuth((s) => s.setUser);
   const [editing, setEditing] = useState(false);
+  const [tripToDelete, setTripToDelete] = useState<Trip | null>(null);
+  const [deleteTripError, setDeleteTripError] = useState<string | null>(null);
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
   const trips = useQuery({ queryKey: ["my-trips"], queryFn: api.myTrips });
   const blocked = useQuery({ queryKey: ["blocked-users"], queryFn: api.blockedUsers });
@@ -243,6 +247,18 @@ export default function ProfilePage() {
     },
   });
 
+  const deleteTrip = useMutation({
+    mutationFn: (tripId: number) => api.deleteTrip(tripId),
+    onSuccess: () => {
+      setTripToDelete(null);
+      setDeleteTripError(null);
+      qc.invalidateQueries({ queryKey: ["my-trips"] });
+      qc.invalidateQueries({ queryKey: ["active-trip"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+    onError: (e: Error) => setDeleteTripError(e.message || "Couldn't delete trip. Try again."),
+  });
+
   const u = me.data;
   if (me.isLoading) return <p className="text-sm text-muted">Loading profile…</p>;
   if (!u) return <p role="alert" className="text-sm text-red-400">Couldn't load your profile. Refresh to try again.</p>;
@@ -261,7 +277,7 @@ export default function ProfilePage() {
             <h1 className="mt-3 text-lg font-bold">{u.full_name}{u.age ? `, ${u.age}` : ""}</h1>
             <p className="text-xs text-muted">{u.origin_location}{u.is_verified ? " · Verified ✓" : ""}</p>
             <dl className="mt-4 flex gap-6 font-serif text-xl">
-              {[["Trips", u.trips_count ?? 0], ["Matches", u.matches_count ?? 0], ["Rating", Number(u.rating ?? 0).toFixed(1)]].map(([label, val]) => (
+              {[["Trips", u.trips_count ?? 0], ["Matches", u.matches_count ?? 0]].map(([label, val]) => (
                 <div key={label as string}><dd>{val}</dd><dt className="font-sans text-[11px] text-muted">{label}</dt></div>
               ))}
             </dl>
@@ -306,10 +322,13 @@ export default function ProfilePage() {
                       key={b.user_id}
                       className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-ink-900/50 px-2.5 py-2"
                     >
-                      <div className="flex min-w-0 items-center gap-2.5">
+                      <Link
+                        href={`/users/${b.user_id}`}
+                        className="flex min-w-0 items-center gap-2.5 transition hover:text-brand"
+                      >
                         <Avatar name={b.full_name} src={b.avatar_url} size={30} />
                         <span className="truncate text-xs font-medium">{b.full_name}</span>
-                      </div>
+                      </Link>
                       <Button
                         type="button"
                         variant="outline"
@@ -348,28 +367,60 @@ export default function ProfilePage() {
           </div>
         </section>
         {trips.data && trips.data.length > 0 && (
-  <section className="panel p-5">
-    <h2 className="mb-3 text-sm font-semibold text-brand">My trips</h2>
-    <div className="space-y-3">
-      {trips.data.map((t) => (
-        <div key={t.trip_id} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0">
-          <div>
-            <p className="font-semibold">
-              {t.destination} · {fmtRange(t.departure_date, t.return_date)}
-            </p>
-            <p className="text-xs text-muted">
-              Looking for {t.looking_for_count} travel companion{t.looking_for_count > 1 ? "s" : ""}
-            </p>
-          </div>
-          <span className="text-3xl" aria-hidden>🏖️</span>
-        </div>
-      ))}
-    </div>
-  </section>
-)}
+          <section className="panel p-5">
+            <h2 className="mb-3 text-sm font-semibold text-brand">My trips</h2>
+            <div className="space-y-3">
+              {trips.data.map((t) => (
+                <div key={t.trip_id} className="flex items-center justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="font-semibold">
+                      {t.destination} · {fmtRange(t.departure_date, t.return_date)}
+                    </p>
+                    <p className="text-xs text-muted">
+                      Looking for {t.looking_for_count} travel companion{t.looking_for_count > 1 ? "s" : ""}
+                      {t.budget_usd ? ` · $${t.budget_usd}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label={`Delete ${t.destination} trip`}
+                    onClick={() => {
+                      setDeleteTripError(null);
+                      setTripToDelete(t);
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted hover:text-rose-300"
+                  >
+                    <Trash2 size={14} aria-hidden />
+                    <span>Delete</span>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {editing && <EditProfileModal user={u} onClose={() => setEditing(false)} onSaved={syncUser} />}
+      {tripToDelete && (
+        <ConfirmModal
+          open
+          variant="danger"
+          title="Delete trip?"
+          description="This will permanently remove this trip from your profile and Discover."
+          confirmLabel="Delete"
+          loadingLabel="Deleting..."
+          isLoading={deleteTrip.isPending}
+          error={deleteTripError}
+          onConfirm={() => deleteTrip.mutate(tripToDelete.trip_id)}
+          onClose={() => {
+            if (!deleteTrip.isPending) {
+              setTripToDelete(null);
+              setDeleteTripError(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

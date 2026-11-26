@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 export default function LoginPage() {
   const router = useRouter();
   const token = useAuth((s) => s.token);
+  const role = useAuth((s) => s.user?.role);
   const setSession = useAuth((s) => s.setSession);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
@@ -19,14 +20,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (token) router.replace("/discover");
-  }, [token, router]);
+    if (token) router.replace(role?.toLowerCase() === "admin" ? "/moderation" : "/discover");
+  }, [token, role, router]);
 
   const auth = useMutation({
     mutationFn: () => (mode === "signin" ? api.login(email, password) : api.register(name, email, password)),
     onSuccess: (r) => {
       setSession(r.token, r.user);
-      router.replace("/discover");
+      router.replace(r.user?.role?.toLowerCase() === "admin" ? "/moderation" : "/discover");
     },
     onError: (e: Error) => setError(e.message),
   });

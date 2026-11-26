@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -119,14 +120,19 @@ export default function MessagesPage() {
           <>
             <header className="flex items-center gap-3 border-b border-white/5 p-4">
               <button className="mr-1 text-muted md:hidden" aria-label="Back to conversations" onClick={() => setActive(null)}>←</button>
-              <Avatar name={current.other_user.full_name} src={current.other_user.avatar_url} online={current.other_user.is_online} size={44} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{current.other_user.full_name}</p>
-                <p className="truncate text-sm text-brand">
-                  {current.other_user.is_online ? "Online" : "Offline"}
-                  {current.other_user.destination ? ` · ${current.other_user.destination}` : ""}
-                </p>
-              </div>
+              <Link
+                href={`/users/${current.other_user.user_id}`}
+                className="flex min-w-0 flex-1 items-center gap-3 transition hover:opacity-90"
+              >
+                <Avatar name={current.other_user.full_name} src={current.other_user.avatar_url} online={current.other_user.is_online} size={44} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold hover:text-brand hover:underline">{current.other_user.full_name}</p>
+                  <p className="truncate text-sm text-brand">
+                    {current.other_user.is_online ? "Online" : "Offline"}
+                    {current.other_user.destination ? ` · ${current.other_user.destination}` : ""}
+                  </p>
+                </div>
+              </Link>
               <UserSafetyMenu
                 userId={current.other_user.user_id}
                 userName={current.other_user.full_name}

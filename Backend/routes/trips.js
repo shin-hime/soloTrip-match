@@ -18,11 +18,13 @@ async function setRange(id, dep, ret) {
 }
 
 router.get('/mine', async (req, res) => {
-  const r = await db.query(
-    `SELECT trip_id, destination, traveling_from, departure_date::text, return_date::text,
-            budget_usd, looking_for_count, status FROM trips
-     WHERE user_id = $1 AND status::text <> 'cancelled' ORDER BY departure_date`, [req.user.id]);
-  res.json(r.rows);
+  try {
+    const r = await db.query(
+      `SELECT trip_id, destination, traveling_from, departure_date::text, return_date::text,
+              budget_usd, looking_for_count, status FROM trips
+       WHERE user_id = $1 AND status::text <> 'cancelled' ORDER BY departure_date`, [req.user.id]);
+    res.json(r.rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
 
 router.post('/', async (req, res) => {
@@ -54,9 +56,28 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  const r = await db.query(`UPDATE trips SET status='cancelled' WHERE trip_id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  if (!r.rowCount) return res.status(404).json({ error: 'Trip not found.' });
-  res.json({ ok: true });
+  try {
+    const tripId = parseInt(req.params.id, 10);
+    if (!tripId) return res.status(400).json({ error: 'Invalid trip.' });
+    const existing = await db.query('SELECT user_id FROM trips WHERE trip_id = $1', [tripId]);
+    if (!existing.rowCount) return res.status(404).json({ error: 'Trip not found.' });
+    if (existing.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own trips.' });
+    }
+    try {
+      await db.query('DELETE FROM trips WHERE trip_id = $1 AND user_id = $2', [tripId, req.user.id]);
+    } catch (delErr) {
+      if (delErr.code === '23503') {
+        await db.query(`UPDATE trips SET status = 'cancelled' WHERE trip_id = $1 AND user_id = $2`, [tripId, req.user.id]);
+      } else {
+        throw delErr;
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error.' });
+  }
 });
 
 module.exports = router;

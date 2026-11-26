@@ -4,7 +4,7 @@
 import { useAuth } from "@/store/auth";
 import type {
   AppNotification, AuthResponse, BlockedUser, Conversation, DirectMessage, GroupMessage, MatchedTraveler, MatchFilters,
-  NewGroupInput, NewTripInput, Trip, TripGroup, User, UserReport, ReportStatus,
+  NewGroupInput, NewTripInput, PublicUserProfile, Trip, TripGroup, User, UserReport, ReportStatus,
 } from "@/types";
 import {
   mockConversations, mockGroups, mockMatches, mockMe, mockMessages, mockNotifications,
@@ -145,6 +145,72 @@ export const api = {
           .then((r) => ({ token: r.token, user: normalizeUser(r.user) })),
   me: (): Promise<User> =>
     USE_MOCK ? wait(mockMe) : request<Partial<User>>("/profile").then(normalizeUser),
+  userProfile: (id: number): Promise<PublicUserProfile> => {
+    if (USE_MOCK) {
+      const m = mockMatches.find((x) => x.user_id === id);
+      const conv = mockConversations.find((c) => c.other_user.user_id === id);
+      const blocked = mockBlockedUsers.some((b) => b.user_id === id);
+      return wait({
+        user_id: id,
+        full_name: m?.full_name ?? conv?.other_user.full_name ?? `Traveler ${id}`,
+        age: m?.age ?? null,
+        origin_location: null,
+        avatar_url: m?.avatar_url ?? conv?.other_user.avatar_url ?? null,
+        cover_photo_url: null,
+        bio: m?.bio ?? null,
+        travel_styles: m?.travel_styles ?? [],
+        budget_range: m?.budget_usd ? `$${m.budget_usd}` : null,
+        interests: m?.interests ?? [],
+        rating: m?.rating ?? 0,
+        trips_count: m?.trips_count ?? 0,
+        matches_count: 0,
+        is_verified: false,
+        hide_contact_info: true,
+        contact_info: null,
+        trips: m
+          ? [{
+              trip_id: id,
+              user_id: id,
+              destination: m.destination,
+              traveling_from: null,
+              departure_date: m.departure_date,
+              return_date: m.return_date,
+              budget_usd: m.budget_usd,
+              looking_for_count: 1,
+              status: "active",
+              created_at: "",
+            }]
+          : [],
+        is_blocked: blocked,
+        is_matched: Boolean(conv),
+        conversation_id: conv?.conversation_id ?? null,
+        request_status: "none",
+      });
+    }
+    return request<Partial<PublicUserProfile>>(`/users/${id}`).then((p) => ({
+      user_id: Number(p.user_id ?? id),
+      full_name: p.full_name ?? "",
+      age: p.age != null ? Number(p.age) : null,
+      origin_location: p.origin_location ?? null,
+      avatar_url: p.avatar_url ?? null,
+      cover_photo_url: p.cover_photo_url ?? null,
+      bio: p.bio ?? null,
+      travel_styles: Array.isArray(p.travel_styles) ? p.travel_styles : [],
+      budget_range: p.budget_range ?? null,
+      interests: Array.isArray(p.interests) ? p.interests : [],
+      rating: Number(p.rating ?? 0),
+      trips_count: Number(p.trips_count ?? 0),
+      matches_count: Number(p.matches_count ?? 0),
+      is_verified: Boolean(p.is_verified),
+      hide_contact_info: Boolean(p.hide_contact_info),
+      contact_info: p.contact_info ?? null,
+      trips: Array.isArray(p.trips) ? p.trips.map(normalizeTrip) : [],
+      is_blocked: Boolean(p.is_blocked),
+      is_matched: Boolean(p.is_matched),
+      conversation_id: p.conversation_id ?? null,
+      request_status: p.request_status ?? "none",
+    }));
+  },
   oauthUrl: (provider: "google" | "facebook") => `${API_URL}/auth/${provider}`,
 
   // ---- trips & matching
@@ -168,6 +234,10 @@ myActiveTrip: (): Promise<Trip | null> => {
     USE_MOCK
       ? wait({ ...mockTrip, ...input, trip_id: Date.now(), status: "active" as const, created_at: new Date().toISOString() })
       : request<Partial<Trip>>("/trips", { method: "POST", json: input }).then(normalizeTrip),
+  deleteTrip: (tripId: number): Promise<void> =>
+    USE_MOCK
+      ? wait(undefined, 150)
+      : request(`/trips/${tripId}`, { method: "DELETE" }).then(() => undefined),
   matches: (filters: MatchFilters, tripId?: number): Promise<MatchedTraveler[]> => {
   if (USE_MOCK) return wait(mockMatches);
 

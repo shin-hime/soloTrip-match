@@ -135,15 +135,20 @@ export default function GroupHubPage() {
           ) : (
             <ul className="space-y-3">
               {members.map((m) => (
-                <li key={m.user_id} className="flex items-center gap-3">
-                  <Avatar name={m.full_name} src={m.avatar_url} size={34} className="rounded-full ring-1 ring-white/10" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{m.full_name}</p>
-                    <p className="flex items-center gap-1 text-[11px] capitalize text-muted">
-                      {m.role === "host" && <Crown size={11} className="text-amber-300" aria-hidden />}
-                      {m.role}
-                    </p>
-                  </div>
+                <li key={m.user_id}>
+                  <Link
+                    href={m.user_id === meId ? "/profile" : `/users/${m.user_id}`}
+                    className="flex items-center gap-3 rounded-lg transition hover:text-brand"
+                  >
+                    <Avatar name={m.full_name} src={m.avatar_url} size={34} className="rounded-full ring-1 ring-white/10" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{m.full_name}</p>
+                      <p className="flex items-center gap-1 text-[11px] capitalize text-muted">
+                        {m.role === "host" && <Crown size={11} className="text-amber-300" aria-hidden />}
+                        {m.role}
+                      </p>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
