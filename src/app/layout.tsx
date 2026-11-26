@@ -7,7 +7,7 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 const serif = DM_Serif_Display({ subsets: ["latin"], weight: "400", variable: "--font-serif" });
 
 export const metadata: Metadata = {
-  title: "TravelMate",
+  title: "SoloTrip Match",
   description: "Find your perfect travel partner.",
 };
 

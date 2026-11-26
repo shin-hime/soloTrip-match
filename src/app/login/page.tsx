@@ -52,8 +52,14 @@ export default function LoginPage() {
           style={{ background: "linear-gradient(180deg, rgba(10,14,30,0.62) 0%, rgba(16,18,34,0.42) 45%, rgba(10,12,24,0.90) 100%)" }}
         />
         <div className="relative z-10 flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-violet-brand font-bold">T</span>
-          <span className="font-bold">TravelMate</span>
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-cyan-200 bg-gradient-to-br from-sky-300 via-blue-500 to-cyan-700 font-serif text-xl italic text-white shadow-[0_0_10px_#38bdf8,0_0_22px_#0ea5e9]">
+  𝑺
+  <span className="absolute -inset-1 top-[9px] rotate-[-25deg] rounded-[50%] border border-cyan-200 shadow-[0_0_5px_#38bdf8]" />
+  <span className="absolute -right-2 -top-1 text-[10px] text-cyan-200">
+    ✈
+  </span>
+</span>
+          <span className="font-bold">SoloTrip Match</span>
         </div>
         <div className="relative z-10 max-w-sm">
           <h1 className="font-serif text-6xl leading-[1.05]">

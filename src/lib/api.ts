@@ -434,6 +434,7 @@ myActiveTrip: (): Promise<Trip | null> => {
         : []
     );
   },
+  getBlockedUsers: (): Promise<BlockedUser[]> => api.blockedUsers(),
   unblockUser: (blocked_user_id: number): Promise<void> => {
     if (USE_MOCK) {
       const idx = mockBlockedUsers.findIndex((b) => b.user_id === blocked_user_id);
@@ -444,7 +445,6 @@ myActiveTrip: (): Promise<Trip | null> => {
       method: "DELETE",
     }).then(() => undefined);
   },
-
 
   // ---- notifications
   notifications: (): Promise<AppNotification[]> => {

@@ -109,8 +109,16 @@ export function Navbar() {
     <header className="sticky top-0 z-40 border-b border-white/5 bg-ink-900/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
         <Link href="/discover" className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-violet-brand text-sm font-bold">T</span>
-          <span className="hidden font-bold sm:inline">TravelMate</span>
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-full border border-cyan-200 bg-gradient-to-br from-sky-300 via-blue-500 to-cyan-700 font-serif text-xl italic text-white shadow-[0_0_10px_#38bdf8,0_0_22px_#0ea5e9]">
+  𝑺
+
+  <span className="absolute -inset-1 top-[9px] rotate-[-25deg] rounded-[50%] border border-cyan-200 shadow-[0_0_5px_#38bdf8]" />
+
+  <span className="absolute -right-2 -top-1 text-[10px] text-cyan-200">
+    ✈
+  </span>
+</span>
+          <span className="hidden font-bold sm:inline">SoloTrip Match</span>
         </Link>
 
         <nav aria-label="Main" className="flex flex-1 gap-1 overflow-x-auto px-1 sm:px-4">
