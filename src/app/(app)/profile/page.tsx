@@ -370,57 +370,7 @@ const unblock = useMutation({
       ))}
     </div>
   </section>
-)}  <section className="panel p-5">
-  <h2 className="mb-3 text-sm font-semibold">
-    Who I Blocked
-  </h2>
-
-  {blockedUsers.isLoading ? (
-    <p className="text-sm text-muted">
-      Loading blocked users...
-    </p>
-  ) : blockedUsers.isError ? (
-    <p className="text-sm text-red-400">
-      Couldn't load blocked users. Please try again.
-    </p>
-  ) : blockedUsers.data && blockedUsers.data.length > 0 ? (
-    <div className="space-y-3">
-      {blockedUsers.data.map((person) => (
-        <div
-          key={person.user_id}
-          className="flex items-center justify-between gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0"
-        >
-          <div>
-            <p className="text-sm font-semibold">
-              {person.full_name}
-            </p>
-            <p className="text-xs text-muted">
-              Blocked user
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            disabled={unblock.isPending}
-            onClick={() => unblock.mutate(person.user_id)}
-          >
-            Unblock
-          </Button>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <p className="text-sm text-muted">
-      You haven't blocked anyone.
-    </p>
-  )}
-
-  {unblock.isError && (
-    <p className="mt-2 text-xs text-red-400">
-      Couldn't unblock this user. Please try again.
-    </p>
-  )}
-</section>
+)}
       </div>
 
       {editing && <EditProfileModal user={u} onClose={() => setEditing(false)} onSaved={syncUser} />}
