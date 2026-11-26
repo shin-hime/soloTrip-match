@@ -37,6 +37,8 @@ router.put('/reports/:id', async (req, res) => {
     if (!r.rowCount) return res.status(404).json({ error: 'Report not found.' });
     if (req.body.suspend)
       await db.query(`UPDATE users SET is_active=false WHERE user_id=$1 AND role <> 'admin'`, [r.rows[0].reported_user_id]);
+    else if (req.body.unsuspend)
+      await db.query(`UPDATE users SET is_active=true WHERE user_id=$1 AND role <> 'admin'`, [r.rows[0].reported_user_id]);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -47,6 +49,16 @@ router.put('/reports/:id', async (req, res) => {
 router.put('/users/:id/active', async (req, res) => {
   try {
     await db.query(`UPDATE users SET is_active=$1 WHERE user_id=$2 AND role <> 'admin'`, [req.body.is_active === true, req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+router.put('/users/:id/activate', async (req, res) => {
+  try {
+    await db.query(`UPDATE users SET is_active=true WHERE user_id=$1 AND role <> 'admin'`, [req.params.id]);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);

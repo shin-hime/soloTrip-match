@@ -30,7 +30,13 @@ router.post('/block', async (req, res) => {
 
 router.get('/blocks', async (req, res) => {
   try {
-    const r = await db.query(`SELECT u.user_id, u.full_name FROM blocks b JOIN users u ON u.user_id = b.blocked_id WHERE b.blocker_id = $1`, [req.user.id]);
+    const r = await db.query(
+      `SELECT u.user_id, u.full_name, u.avatar_url, b.created_at
+       FROM blocks b JOIN users u ON u.user_id = b.blocked_id
+       WHERE b.blocker_id = $1
+       ORDER BY b.created_at DESC`,
+      [req.user.id]
+    );
     res.json(r.rows);
   } catch (e) {
     console.error(e);
@@ -38,9 +44,11 @@ router.get('/blocks', async (req, res) => {
   }
 });
 
-router.delete('/block/:id', async (req, res) => {
+router.delete(['/block/:id', '/blocks/:id'], async (req, res) => {
   try {
-    await db.query('DELETE FROM blocks WHERE blocker_id=$1 AND blocked_id=$2', [req.user.id, req.params.id]);
+    const target = parseInt(req.params.id, 10);
+    if (!target) return res.status(400).json({ error: 'Invalid user.' });
+    await db.query('DELETE FROM blocks WHERE blocker_id=$1 AND blocked_id=$2', [req.user.id, target]);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);

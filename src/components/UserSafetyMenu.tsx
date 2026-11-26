@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ban, Flag, MoreVertical, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 const REPORT_REASONS = [
   "Harassment",
@@ -31,6 +32,7 @@ export function UserSafetyMenu({
   onBlocked,
   buttonClassName,
 }: UserSafetyMenuProps) {
+  const qc = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [modal, setModal] = useState<"report" | "block" | null>(null);
   const [reason, setReason] = useState<ReportReason>("Harassment");
@@ -93,6 +95,7 @@ export function UserSafetyMenu({
   const blockMutation = useMutation({
     mutationFn: () => api.blockUser(userId),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["blocked-users"] });
       closeModal();
       onBlocked?.();
     },
@@ -259,56 +262,18 @@ export function UserSafetyMenu({
         </div>
       )}
 
-      {modal === "block" && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Block ${userName}`}
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !blockMutation.isPending) closeModal();
-          }}
-        >
-          <div className="panel w-full max-w-sm space-y-4 bg-ink-800 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="font-serif text-2xl">Block {userName}?</h2>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={closeModal}
-                className="rounded-lg p-1 text-muted transition hover:bg-white/5 hover:text-white"
-              >
-                <X size={18} aria-hidden />
-              </button>
-            </div>
-
-            <p className="text-sm text-muted">
-              You won&apos;t see each other in Discover or Messages anymore, and they won&apos;t be able to message you.
-            </p>
-
-            {error && (
-              <p role="alert" className="text-sm text-red-400">
-                {error}
-              </p>
-            )}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="ghost" disabled={blockMutation.isPending} onClick={closeModal}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={blockMutation.isPending}
-                onClick={() => blockMutation.mutate()}
-                className="border-red-400/40 bg-red-500/15 text-red-300 hover:bg-red-500/25"
-              >
-                {blockMutation.isPending ? "Blocking…" : "Block user"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={modal === "block"}
+        variant="danger"
+        title={`Block ${userName}?`}
+        description="You won't see each other in Discover or Messages anymore, and they won't be able to message you."
+        confirmLabel="Block user"
+        loadingLabel="Blocking..."
+        isLoading={blockMutation.isPending}
+        error={error}
+        onConfirm={() => blockMutation.mutate()}
+        onClose={closeModal}
+      />
     </>
   );
 }

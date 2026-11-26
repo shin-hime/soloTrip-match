@@ -3,7 +3,7 @@
 // so the UI is fully usable before the Express API exists.
 import { useAuth } from "@/store/auth";
 import type {
-  AppNotification, AuthResponse, Conversation, DirectMessage, GroupMessage, MatchedTraveler, MatchFilters,
+  AppNotification, AuthResponse, BlockedUser, Conversation, DirectMessage, GroupMessage, MatchedTraveler, MatchFilters,
   NewGroupInput, NewTripInput, Trip, TripGroup, User, UserReport, ReportStatus,
 } from "@/types";
 import {
@@ -116,6 +116,8 @@ const toFrontendReportStatus = (s: string): ReportStatus => {
 
 const toBackendReportStatus = (s: ReportStatus): "reviewed" | "resolved" =>
   s === "reviewing" || s === "open" ? "reviewed" : "resolved";
+
+const mockBlockedUsers: BlockedUser[] = [];
 
 const discoverQs = (f: MatchFilters, tripId?: number) => {
   const p = new URLSearchParams();
@@ -394,11 +396,21 @@ myActiveTrip: (): Promise<Trip | null> => {
       const convIdx = mockConversations.findIndex(
         (c) => c.other_user.user_id === blocked_user_id
       );
-      if (convIdx !== -1) mockConversations.splice(convIdx, 1);
-
       const matchIdx = mockMatches.findIndex(
         (m) => m.user_id === blocked_user_id
       );
+      const userInfo =
+        (convIdx !== -1 ? mockConversations[convIdx].other_user : null) ??
+        (matchIdx !== -1 ? mockMatches[matchIdx] : null);
+      if (!mockBlockedUsers.some((b) => b.user_id === blocked_user_id)) {
+        mockBlockedUsers.unshift({
+          user_id: blocked_user_id,
+          full_name: userInfo?.full_name ?? `User ${blocked_user_id}`,
+          avatar_url: userInfo?.avatar_url ?? null,
+          created_at: new Date().toISOString(),
+        });
+      }
+      if (convIdx !== -1) mockConversations.splice(convIdx, 1);
       if (matchIdx !== -1) mockMatches.splice(matchIdx, 1);
 
       return wait(undefined, 150);
@@ -407,6 +419,29 @@ myActiveTrip: (): Promise<Trip | null> => {
     return request("/safety/block", {
       method: "POST",
       json: { user_id: blocked_user_id },
+    }).then(() => undefined);
+  },
+  blockedUsers: (): Promise<BlockedUser[]> => {
+    if (USE_MOCK) return wait([...mockBlockedUsers], 100);
+    return request<Partial<BlockedUser>[]>("/safety/blocks").then((rows) =>
+      Array.isArray(rows)
+        ? rows.map((b) => ({
+            user_id: Number(b.user_id ?? 0),
+            full_name: b.full_name ?? `User ${b.user_id ?? ""}`,
+            avatar_url: b.avatar_url ?? null,
+            created_at: b.created_at ?? null,
+          }))
+        : []
+    );
+  },
+  unblockUser: (blocked_user_id: number): Promise<void> => {
+    if (USE_MOCK) {
+      const idx = mockBlockedUsers.findIndex((b) => b.user_id === blocked_user_id);
+      if (idx !== -1) mockBlockedUsers.splice(idx, 1);
+      return wait(undefined, 150);
+    }
+    return request(`/safety/blocks/${blocked_user_id}`, {
+      method: "DELETE",
     }).then(() => undefined);
   },
 
@@ -442,8 +477,14 @@ myActiveTrip: (): Promise<Trip | null> => {
     if (r) r.status = status;
     return wait(undefined, 100);
   },
-  adminSetUserActive: (userId: number, is_active: boolean): Promise<void> =>
-    USE_MOCK
-      ? wait(undefined)
-      : request(`/admin/users/${userId}/active`, { method: "PUT", json: { is_active } }).then(() => undefined),
+  adminSetUserActive: (userId: number, is_active: boolean): Promise<void> => {
+    if (!USE_MOCK) {
+      return request(`/admin/users/${userId}/active`, { method: "PUT", json: { is_active } }).then(() => undefined);
+    }
+    for (const r of mockReports) {
+      if (r.reported_user_id === userId) r.reported_active = is_active;
+    }
+    return wait(undefined, 100);
+  },
+  unsuspendUser: (userId: number): Promise<void> => api.adminSetUserActive(userId, true),
 };

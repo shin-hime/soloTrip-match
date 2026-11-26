@@ -7,6 +7,11 @@ import { useAuth } from "@/store/auth";
 import type { ReportStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+
+type PendingAction =
+  | { type: "reactivate"; userId: number; userName: string }
+  | { type: "suspend"; userId: number; reportId: number; userName: string };
 
 const statusStyle: Record<ReportStatus, string> = {
   open: "text-amber-300 border-amber-300/40",
@@ -29,6 +34,8 @@ export default function AdminPage() {
   const isAdmin = role?.toLowerCase() === "admin";
   const [tab, setTab] = useState<"all" | ReportStatus>("all");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const reports = useQuery({
     queryKey: ["admin-reports"],
@@ -47,10 +54,21 @@ export default function AdminPage() {
     onError: (e: Error) => setActionError(e.message || "Couldn't update report status."),
   });
 
-  const suspend = useMutation({
-    mutationFn: (userId: number) => api.adminSetUserActive(userId, false),
-    onSuccess: refresh,
-    onError: (e: Error) => setActionError(e.message || "Couldn't suspend account."),
+  const accountAction = useMutation({
+    mutationFn: async (action: PendingAction) => {
+      if (action.type === "reactivate") {
+        await api.adminSetUserActive(action.userId, true);
+      } else {
+        await api.adminSetUserActive(action.userId, false);
+        await api.adminUpdateReport(action.reportId, "resolved");
+      }
+    },
+    onSuccess: () => {
+      setPendingAction(null);
+      setModalError(null);
+      refresh();
+    },
+    onError: (e: Error) => setModalError(e.message || "Couldn't update account status."),
   });
 
   const list = Array.isArray(reports.data) ? reports.data : [];
@@ -134,16 +152,35 @@ export default function AdminPage() {
               <Button variant="outline" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: r.report_id, status: "resolved" })}>
                 Mark resolved
               </Button>
-              {r.reported_active !== false && (
+              {r.reported_active === false ? (
                 <Button
                   variant="ghost"
-                  disabled={suspend.isPending}
+                  disabled={accountAction.isPending}
+                  className="text-brand hover:text-brand/80"
+                  onClick={() => {
+                    setModalError(null);
+                    setPendingAction({
+                      type: "reactivate",
+                      userId: r.reported_user_id,
+                      userName: r.reported_name ?? `User ${r.reported_user_id}`,
+                    });
+                  }}
+                >
+                  Reactivate account
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  disabled={accountAction.isPending}
                   className="text-red-400 hover:text-red-300"
                   onClick={() => {
-                    if (confirm("Suspend this account?")) {
-                      suspend.mutate(r.reported_user_id);
-                      setStatus.mutate({ id: r.report_id, status: "resolved" });
-                    }
+                    setModalError(null);
+                    setPendingAction({
+                      type: "suspend",
+                      userId: r.reported_user_id,
+                      reportId: r.report_id,
+                      userName: r.reported_name ?? `User ${r.reported_user_id}`,
+                    });
                   }}
                 >
                   Suspend account
@@ -153,6 +190,30 @@ export default function AdminPage() {
           </article>
         ))}
       </div>
+
+      {pendingAction && (
+        <ConfirmModal
+          open
+          variant={pendingAction.type === "suspend" ? "danger" : "primary"}
+          title={pendingAction.type === "suspend" ? "Suspend account?" : "Reactivate account?"}
+          description={
+            pendingAction.type === "suspend"
+              ? `This will suspend ${pendingAction.userName}'s account and mark this report as resolved.`
+              : `This will restore ${pendingAction.userName}'s access to TravelMate.`
+          }
+          confirmLabel={pendingAction.type === "suspend" ? "Suspend" : "Reactivate"}
+          loadingLabel={pendingAction.type === "suspend" ? "Suspending..." : "Reactivating..."}
+          isLoading={accountAction.isPending}
+          error={modalError}
+          onConfirm={() => accountAction.mutate(pendingAction)}
+          onClose={() => {
+            if (!accountAction.isPending) {
+              setPendingAction(null);
+              setModalError(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

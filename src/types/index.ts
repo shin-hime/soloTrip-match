@@ -175,6 +175,13 @@ export interface UserReport {
   created_at: string;
 }
 
+export interface BlockedUser {
+  user_id: number;
+  full_name: string;
+  avatar_url: string | null;
+  created_at?: string | null;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;

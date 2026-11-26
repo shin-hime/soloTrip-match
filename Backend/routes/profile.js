@@ -7,11 +7,10 @@ const db = require('../db');
 const { requireAuth } = require('./auth');
 
 router.use(requireAuth);
-console.log('Supabase URL loaded:', process.env.SUPABASE_URL);
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabase =
+  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : null;
 
 const storage = multer({
   storage: multer.memoryStorage(),
@@ -129,6 +128,9 @@ router.patch('/', async (req, res) => {
 });
 router.post('/upload', storage.single('file'), async (req, res) => {
   try {
+    if (!supabase) {
+      return res.status(500).json({ error: 'Image upload is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Backend/.env.' });
+    }
     if (!req.file) {
       return res.status(400).json({ error: 'Please select an image.' });
     }

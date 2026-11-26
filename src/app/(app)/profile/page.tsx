@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, UserCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtRange, gradientFor } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
@@ -221,6 +222,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
   const trips = useQuery({ queryKey: ["my-trips"], queryFn: api.myTrips });
+  const blocked = useQuery({ queryKey: ["blocked-users"], queryFn: api.blockedUsers });
 
   const syncUser = (u: User) => {
     setUser(u);
@@ -230,6 +232,15 @@ export default function ProfilePage() {
   const update = useMutation({
     mutationFn: api.updateMe,
     onSuccess: syncUser,
+  });
+
+  const unblock = useMutation({
+    mutationFn: (userId: number) => api.unblockUser(userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["blocked-users"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
   });
 
   const u = me.data;
@@ -269,6 +280,55 @@ export default function ProfilePage() {
           <p className="border-t border-white/5 pt-2 text-xs text-muted">
             To block or report someone, use the options on their profile or in a conversation.
           </p>
+
+          <div className="mt-4 border-t border-white/5 pt-3">
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+              <Ban size={13} aria-hidden />
+              <span>Blocked users</span>
+              {blocked.data && blocked.data.length > 0 && (
+                <span className="ml-auto rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-white">
+                  {blocked.data.length}
+                </span>
+              )}
+            </h3>
+
+            {blocked.isLoading && <p className="mt-2 text-xs text-muted">Loading…</p>}
+            {blocked.isError && <p role="alert" className="mt-2 text-xs text-red-400">Couldn&apos;t load blocked users.</p>}
+            {blocked.isSuccess && blocked.data.length === 0 && (
+              <p className="mt-2 text-xs text-muted">No blocked users.</p>
+            )}
+            {blocked.isSuccess && blocked.data.length > 0 && (
+              <ul className="mt-2.5 space-y-2">
+                {blocked.data.map((b) => {
+                  const isUnblocking = unblock.isPending && unblock.variables === b.user_id;
+                  return (
+                    <li
+                      key={b.user_id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-ink-900/50 px-2.5 py-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Avatar name={b.full_name} src={b.avatar_url} size={30} />
+                        <span className="truncate text-xs font-medium">{b.full_name}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={unblock.isPending}
+                        onClick={() => unblock.mutate(b.user_id)}
+                        className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1 text-xs"
+                      >
+                        <UserCheck size={12} aria-hidden />
+                        <span>{isUnblocking ? "Unblocking…" : "Unblock"}</span>
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {unblock.isError && (
+              <p role="alert" className="mt-2 text-xs text-red-400">Couldn&apos;t unblock user. Try again.</p>
+            )}
+          </div>
         </section>
       </div>
 
