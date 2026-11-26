@@ -237,7 +237,7 @@ export default function DiscoverPage() {
         ) : (
           <div className="panel p-8 text-center text-sm text-muted">You've seen everyone for now. Refresh to check for new matches.</div>
         )}
-
+        
         {current && (
           <div className="mt-5 flex items-center justify-center gap-4">
             <button aria-label="Skip" onClick={next} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-ink-700 text-muted hover:text-white">✕</button>

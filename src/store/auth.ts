@@ -20,6 +20,6 @@ export const useAuth = create<AuthState>()(
       setUser: (user) => set({ user }),
       logout: () => set({ token: null, user: null }),
     }),
-    { name: "travelmate-auth" }
+    { name: "SoloTrip Match-auth" }
   )
 );

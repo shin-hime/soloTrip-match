@@ -409,7 +409,17 @@ myActiveTrip: (): Promise<Trip | null> => {
       json: { user_id: blocked_user_id },
     }).then(() => undefined);
   },
+    getBlockedUsers: (): Promise<{ user_id: number; full_name: string }[]> =>
+  USE_MOCK
+    ? Promise.resolve([])
+    : request("/safety/blocks"),
 
+unblockUser: (blocked_user_id: number): Promise<void> =>
+  USE_MOCK
+    ? wait(undefined)
+    : request(`/safety/block/${blocked_user_id}`, {
+        method: "DELETE",
+      }).then(() => undefined),
 
   // ---- notifications
   notifications: (): Promise<AppNotification[]> => {
