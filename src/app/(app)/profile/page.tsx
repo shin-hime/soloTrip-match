@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { fmtRange, gradientFor } from "@/lib/utils";
@@ -13,16 +13,55 @@ const STYLES = ["Backpacker", "Budget", "Mid-range", "Luxury", "Adventure", "Cul
 const INTERESTS = ["Beach", "Food", "Adventure", "Culture", "Shopping", "Hiking", "Diving", "Wellness", "Photography", "Nightlife"];
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+type EditProfileModalProps = {
+  user: User;
+  onClose: () => void;
+  onSaved: (updated: User) => void;
+};
 
-function EditProfileModal({ user, onClose, onSaved }: { user: User; onClose: () => void; onSaved: (u: User) => void }) {
-  const [fullName, setFullName] = useState(user.full_name ?? "");
-  const [age, setAge] = useState(user.age != null ? String(user.age) : "");
+function EditProfileModal({ user, onClose, onSaved }: EditProfileModalProps) {
+  const [fullName, setFullName] = useState(user.full_name);
+  const [age, setAge] = useState(String(user.age ?? ""));
   const [origin, setOrigin] = useState(user.origin_location ?? "");
   const [bio, setBio] = useState(user.bio ?? "");
   const [budgetRange, setBudgetRange] = useState(user.budget_range ?? "");
   const [styles, setStyles] = useState<string[]>(user.travel_styles ?? []);
   const [interests, setInterests] = useState<string[]>(user.interests ?? []);
   const [error, setError] = useState<string | null>(null);
+
+
+  const [avatarPreview, setAvatarPreview] = useState(user.avatar_url ?? "");
+  const [coverPreview, setCoverPreview] = useState(user.cover_photo_url ?? "");
+  const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
+
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
+  const uploadImage = async (file: File, type: "avatar" | "cover") => {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    setError("Please select a JPG, PNG, or WEBP image.");
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    setError("Image must be smaller than 5 MB.");
+    return;
+  }
+
+  try {
+    setError(null);
+    setUploading(type);
+
+    const updated = await api.uploadProfileImage(file, type);
+
+    setAvatarPreview(updated.avatar_url ?? "");
+    setCoverPreview(updated.cover_photo_url ?? "");
+    onSaved(updated);
+  } catch (e) {
+    setError(e instanceof Error ? e.message : "Image upload failed.");
+  } finally {
+    setUploading(null);
+  }
+};
 
   const save = useMutation({
     mutationFn: () =>
@@ -58,7 +97,71 @@ function EditProfileModal({ user, onClose, onSaved }: { user: User; onClose: () 
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Edit profile">
       <form onSubmit={submit} className="panel max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto bg-ink-800 p-6">
         <h2 className="font-serif text-2xl">Edit profile</h2>
+          <div className="space-y-4">
+  <h3 className="label">Profile photos</h3>
 
+  {/* Profile picture */}
+  <div className="flex items-center gap-4">
+    <Avatar name={fullName} src={avatarPreview} size={64} />
+
+    <div>
+      <p className="mb-2 text-sm font-semibold">Profile picture</p>
+      <input
+        ref={avatarInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void uploadImage(file, "avatar");
+          e.target.value = "";
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        disabled={uploading !== null}
+        onClick={() => avatarInput.current?.click()}
+      >
+        {uploading === "avatar" ? "Uploading..." : "Upload picture"}
+      </Button>
+    </div>
+  </div>
+
+  {/* Cover photo */}
+  <div>
+    <p className="mb-2 text-sm font-semibold">Cover photo</p>
+    <div
+      className="h-24 w-full rounded-xl bg-cover bg-center"
+      style={{
+        backgroundImage: coverPreview ? `url(${coverPreview})` : "none",
+        background: coverPreview
+          ? undefined
+          : "linear-gradient(135deg, #164e63, #0f172a)",
+      }}
+    />
+    <input
+      ref={coverInput}
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) void uploadImage(file, "cover");
+        e.target.value = "";
+      }}
+    />
+    <Button
+      type="button"
+      variant="outline"
+      className="mt-2"
+      disabled={uploading !== null}
+      onClick={() => coverInput.current?.click()}
+    >
+      {uploading === "cover" ? "Uploading..." : "Upload cover photo"}
+    </Button>
+  </div>
+</div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="pf-name">Full name</label>
@@ -117,7 +220,7 @@ export default function ProfilePage() {
   const setUser = useAuth((s) => s.setUser);
   const [editing, setEditing] = useState(false);
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
-  const trip = useQuery({ queryKey: ["active-trip"], queryFn: api.myActiveTrip });
+  const trips = useQuery({ queryKey: ["my-trips"], queryFn: api.myTrips });
 
   const syncUser = (u: User) => {
     setUser(u);
@@ -184,16 +287,26 @@ export default function ProfilePage() {
               : <p className="text-sm text-muted">No interests added yet.</p>}
           </div>
         </section>
-        {trip.data && (
-          <section className="panel flex items-center justify-between border-brand/30 p-5">
-            <div>
-              <h2 className="text-sm font-semibold text-brand">Active trip</h2>
-              <p className="mt-1 font-semibold">{trip.data.destination} · {fmtRange(trip.data.departure_date, trip.data.return_date)}</p>
-              <p className="text-xs text-muted">Looking for {trip.data.looking_for_count} travel companion{trip.data.looking_for_count > 1 ? "s" : ""}</p>
-            </div>
-            <span className="text-3xl" aria-hidden>🏖️</span>
-          </section>
-        )}
+        {trips.data && trips.data.length > 0 && (
+  <section className="panel p-5">
+    <h2 className="mb-3 text-sm font-semibold text-brand">My trips</h2>
+    <div className="space-y-3">
+      {trips.data.map((t) => (
+        <div key={t.trip_id} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0">
+          <div>
+            <p className="font-semibold">
+              {t.destination} · {fmtRange(t.departure_date, t.return_date)}
+            </p>
+            <p className="text-xs text-muted">
+              Looking for {t.looking_for_count} travel companion{t.looking_for_count > 1 ? "s" : ""}
+            </p>
+          </div>
+          <span className="text-3xl" aria-hidden>🏖️</span>
+        </div>
+      ))}
+    </div>
+  </section>
+)}
       </div>
 
       {editing && <EditProfileModal user={u} onClose={() => setEditing(false)} onSaved={syncUser} />}

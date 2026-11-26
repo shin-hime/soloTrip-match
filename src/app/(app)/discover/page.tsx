@@ -13,8 +13,34 @@ function Photo({ name, className }: { name: string; className?: string }) {
 }
 
 export default function DiscoverPage() {
-  const qc = useQueryClient();
-  const trip = useQuery({ queryKey: ["active-trip"], queryFn: api.myActiveTrip });
+    const qc = useQueryClient();
+
+  const trips = useQuery({ queryKey: ["my-trips"], queryFn: api.myTrips });
+  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
+  const [selectionLoaded, setSelectionLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!trips.isSuccess || !trips.data) return;
+
+    const savedId = Number(localStorage.getItem("solotrip-selected-trip"));
+    const exists = trips.data.some((t) => t.trip_id === savedId);
+
+    setSelectedTripId(
+      exists ? savedId : trips.data[0]?.trip_id ?? null
+    );
+
+    setSelectionLoaded(true);
+  }, [trips.isSuccess, trips.data]);
+
+  const trip =
+    trips.data?.find((t) => t.trip_id === selectedTripId) ??
+    trips.data?.[0] ??
+    null;
+
+  useEffect(() => {
+    setActive({});
+    setQueue([]);
+  }, [trip?.trip_id]);
   const [active, setActive] = useState<Record<string, boolean>>({});
   const [queue, setQueue] = useState<MatchedTraveler[]>([]);
   const [saved, setSaved] = useState<number[]>([]);
@@ -22,21 +48,21 @@ export default function DiscoverPage() {
 
   // Filter chips are derived from the user's active trip; all on by default.
   const chips = useMemo(() => {
-    const t = trip.data;
+    const t = trip;
     if (!t) return [];
     return [
       { key: "destination", label: t.destination },
       { key: "dates", label: fmtRange(t.departure_date, t.return_date) },
       ...(t.budget_usd ? [{ key: "budget", label: `$${Math.round(t.budget_usd * 0.6)}–${Math.round(t.budget_usd * 1.3)}` }] : []),
     ];
-  }, [trip.data]);
+  }, [trip]);
 
   useEffect(() => {
     if (chips.length && Object.keys(active).length === 0) setActive(Object.fromEntries(chips.map((c) => [c.key, true])));
   }, [chips, active]);
 
   const filters = useMemo(() => {
-    const t = trip.data;
+    const t = trip;
     if (!t) return {};
     return {
       destination: active.destination ? t.destination : undefined,
@@ -45,13 +71,13 @@ export default function DiscoverPage() {
       budget_min: active.budget && t.budget_usd ? Math.round(t.budget_usd * 0.6) : undefined,
       budget_max: active.budget && t.budget_usd ? Math.round(t.budget_usd * 1.3) : undefined,
     };
-  }, [trip.data, active]);
+  }, [trip, active]);
 
   const matches = useQuery({
-    queryKey: ["matches", filters],
-    queryFn: () => api.matches(filters),
-    enabled: trip.isSuccess,
-  });
+  queryKey: ["matches", filters, trip?.trip_id],
+  queryFn: () => api.matches(filters, trip!.trip_id),
+  enabled: trips.isSuccess && selectionLoaded && !!trip,
+});
 
   useEffect(() => { if (matches.data) setQueue(matches.data); }, [matches.data]);
 
@@ -62,6 +88,12 @@ export default function DiscoverPage() {
   });
 
   const current = queue[0];
+  console.log("DISCOVER FRONTEND:", {
+  loading: matches.isLoading,
+  error: matches.error,
+  matches: matches.data,
+  count: matches.data?.length,
+});
   const next = () => setQueue((q) => q.slice(1));
   const choose = (u: MatchedTraveler) => setQueue((q) => [u, ...q.filter((x) => x.user_id !== u.user_id)]);
 
@@ -71,7 +103,7 @@ export default function DiscoverPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  if (trip.isSuccess && !trip.data) {
+  if (trips.isSuccess && (!trips.data || trips.data.length === 0)) {
     return (
       <div className="panel mx-auto max-w-md p-8 text-center">
         <h1 className="font-serif text-3xl">Plan a trip to see matches</h1>
@@ -88,9 +120,33 @@ export default function DiscoverPage() {
           Discover <span className="italic text-brand">Travel Partners</span>
         </h1>
         <p className="mt-3 text-sm text-muted">
-          {matches.isLoading ? "Finding matches…" : `${matches.data?.length ?? 0} travelers match your upcoming trips`}
+          {matches.isLoading ? "Finding matches…" : `${matches.data?.length ?? 0} travelers match this trip`}
         </p>
-
+      {(trips.data?.length ?? 0) > 1 && (
+  <div className="mt-5">
+    <label htmlFor="discover-trip" className="mb-2 block text-sm text-muted">
+      Choose a trip to find matches
+    </label>
+    <select
+      id="discover-trip"
+      className="field w-full sm:max-w-sm"
+      value={trip?.trip_id ?? ""}
+      onChange={(e) => {
+  const id = Number(e.target.value);
+  setSelectedTripId(id);
+  localStorage.setItem("solotrip-selected-trip", String(id));
+  setActive({});
+  setQueue([]);
+}}
+    >
+      {trips.data?.map((t) => (
+        <option key={t.trip_id} value={t.trip_id}>
+          {t.destination} · {fmtRange(t.departure_date, t.return_date)}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
         <div className="mt-5 flex flex-wrap gap-2">
           {chips.map((c) => (
             <Chip key={c.key} active={active[c.key]} onClick={() => setActive((a) => ({ ...a, [c.key]: !a[c.key] }))}>

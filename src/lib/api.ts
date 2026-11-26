@@ -117,11 +117,14 @@ const toFrontendReportStatus = (s: string): ReportStatus => {
 const toBackendReportStatus = (s: ReportStatus): "reviewed" | "resolved" =>
   s === "reviewing" || s === "open" ? "reviewed" : "resolved";
 
-const discoverQs = (f: MatchFilters) => {
+const discoverQs = (f: MatchFilters, tripId?: number) => {
   const p = new URLSearchParams();
+
+  if (tripId != null) p.set("trip_id", String(tripId));
   if (f.budget_max != null) p.set("budget_max", String(f.budget_max));
   if (f.styles?.length) p.set("style", f.styles[0]);
   if (f.interests?.length) p.set("interest", f.interests[0]);
+
   const s = p.toString();
   return s ? `?${s}` : "";
 };
@@ -143,29 +146,42 @@ export const api = {
   oauthUrl: (provider: "google" | "facebook") => `${API_URL}/auth/${provider}`,
 
   // ---- trips & matching
-  myActiveTrip: (): Promise<Trip | null> => {
-    if (USE_MOCK) return wait(mockTrip);
-    return request<Partial<Trip>[]>("/trips/mine").then((rows) => {
-      const list = Array.isArray(rows) ? rows.map(normalizeTrip) : [];
-      return list.find((t) => String(t.status) === "open" || t.status === "active") ?? list[0] ?? null;
-    });
-  },
+  myTrips: (): Promise<Trip[]> => {
+  if (USE_MOCK) return wait([mockTrip]);
+
+  return request<Partial<Trip>[]>("/trips/mine").then((rows) =>
+    Array.isArray(rows) ? rows.map(normalizeTrip) : []
+  );
+},
+
+myActiveTrip: (): Promise<Trip | null> => {
+  if (USE_MOCK) return wait(mockTrip);
+
+  return request<Partial<Trip>[]>("/trips/mine").then((rows) => {
+    const list = Array.isArray(rows) ? rows.map(normalizeTrip) : [];
+    return list.find((t) => String(t.status) === "open" || String(t.status) === "active") ?? list[0] ?? null;
+  });
+},
   createTrip: (input: NewTripInput): Promise<Trip> =>
     USE_MOCK
       ? wait({ ...mockTrip, ...input, trip_id: Date.now(), status: "active" as const, created_at: new Date().toISOString() })
       : request<Partial<Trip>>("/trips", { method: "POST", json: input }).then(normalizeTrip),
-  matches: (filters: MatchFilters): Promise<MatchedTraveler[]> => {
-    if (USE_MOCK) return wait(mockMatches);
-    return request<Partial<MatchedTraveler>[]>(`/discover${discoverQs(filters)}`).then((rows) => {
-      const list = Array.isArray(rows) ? rows.map(normalizeMatch) : [];
-      return list.filter((m) => {
-        if (filters.destination && m.destination.toLowerCase().trim() !== filters.destination.toLowerCase().trim()) return false;
-        if (filters.from && filters.to && (m.return_date < filters.from || m.departure_date > filters.to)) return false;
-        if (filters.budget_min != null && m.budget_usd != null && m.budget_usd < filters.budget_min) return false;
-        return true;
-      });
+  matches: (filters: MatchFilters, tripId?: number): Promise<MatchedTraveler[]> => {
+  if (USE_MOCK) return wait(mockMatches);
+
+  return request<Partial<MatchedTraveler>[]>(
+    `/discover${discoverQs(filters, tripId)}`
+  ).then((rows) => {
+    const list = Array.isArray(rows) ? rows.map(normalizeMatch) : [];
+
+    return list.filter((m) => {
+      if (filters.destination && m.destination.toLowerCase().trim() !== filters.destination.toLowerCase().trim()) return false;
+      if (filters.from && filters.to && (m.return_date < filters.from || m.departure_date > filters.to)) return false;
+      if (filters.budget_min != null && m.budget_usd != null && m.budget_usd < filters.budget_min) return false;
+      return true;
     });
-  },
+  });
+},
   sendChatRequest: (receiver_id: number): Promise<void> =>
     USE_MOCK
       ? wait(undefined, 150)
@@ -311,16 +327,48 @@ export const api = {
 
   // ---- profile & safety
   updateMe: (patch: Partial<User>): Promise<User> => {
+    
     if (!USE_MOCK) return request<Partial<User>>("/profile", { method: "PATCH", json: patch }).then(normalizeUser);
     Object.assign(mockMe, patch);
     return wait({ ...mockMe }, 100);
   },
+  
+  uploadProfileImage: async (file: File, type: "avatar" | "cover"): Promise<User> => {
+    if (USE_MOCK) {
+      throw new ApiError("Photo upload requires the backend.", 400);
+    }
+
+    const token = useAuth.getState().token;
+    const formData = new FormData();
+
+    formData.append("file", file);
+    formData.append("type", type);
+
+    const res = await fetch(`${API_URL}/profile/upload`, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (res.status === 401) useAuth.getState().logout();
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error ?? "Photo upload failed.", res.status);
+    }
+
+    return normalizeUser(await res.json());
+  },
+
   reportUser: (reported_user_id: number, reason: string): Promise<void> => {
     if (USE_MOCK) {
       const targetName =
         mockConversations.find((c) => c.other_user.user_id === reported_user_id)?.other_user.full_name ??
         mockMatches.find((m) => m.user_id === reported_user_id)?.full_name ??
         `User ${reported_user_id}`;
+
       mockReports.unshift({
         report_id: Date.now(),
         reporter_id: mockMe.user_id,
@@ -331,20 +379,37 @@ export const api = {
         status: "open",
         created_at: new Date().toISOString(),
       });
+
       return wait(undefined, 150);
     }
-    return request("/safety/report", { method: "POST", json: { user_id: reported_user_id, reason } }).then(() => undefined);
+
+    return request("/safety/report", {
+      method: "POST",
+      json: { user_id: reported_user_id, reason },
+    }).then(() => undefined);
   },
+
   blockUser: (blocked_user_id: number): Promise<void> => {
     if (USE_MOCK) {
-      const convIdx = mockConversations.findIndex((c) => c.other_user.user_id === blocked_user_id);
+      const convIdx = mockConversations.findIndex(
+        (c) => c.other_user.user_id === blocked_user_id
+      );
       if (convIdx !== -1) mockConversations.splice(convIdx, 1);
-      const matchIdx = mockMatches.findIndex((m) => m.user_id === blocked_user_id);
+
+      const matchIdx = mockMatches.findIndex(
+        (m) => m.user_id === blocked_user_id
+      );
       if (matchIdx !== -1) mockMatches.splice(matchIdx, 1);
+
       return wait(undefined, 150);
     }
-    return request("/safety/block", { method: "POST", json: { user_id: blocked_user_id } }).then(() => undefined);
+
+    return request("/safety/block", {
+      method: "POST",
+      json: { user_id: blocked_user_id },
+    }).then(() => undefined);
   },
+
 
   // ---- notifications
   notifications: (): Promise<AppNotification[]> => {

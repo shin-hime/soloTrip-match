@@ -24,6 +24,10 @@ function score(my, other) {
 router.get('/', async (req, res) => {
   try {
     const me = req.user.id, q = req.query;
+    console.log("DISCOVER DEBUG:", {
+  loggedInUserId: me,
+  selectedTripId: q.trip_id
+});
     const r = await db.query(
       `SELECT mt.trip_id AS my_trip_id, mt.departure_date::text AS my_dep, mt.return_date::text AS my_ret,
               mt.budget_usd AS my_budget, mi.interests AS my_interests, mi.travel_styles AS my_styles,
@@ -42,7 +46,8 @@ router.get('/', async (req, res) => {
          AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = $1 AND b.blocked_id = u.user_id)
                                                     OR (b.blocker_id = u.user_id AND b.blocked_id = $1))`,
       [me, q.trip_id ? parseInt(q.trip_id, 10) : null]);
-
+      console.log("MATCHING ROWS:", r.rows.length);
+console.log("MATCHING USERS:", r.rows.map(row => row.user_id));
     const best = new Map();
     for (const row of r.rows) {
       const s = score(

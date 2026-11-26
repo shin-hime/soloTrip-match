@@ -1,7 +1,31 @@
+const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
+const { randomUUID } = require('crypto');
+
 const router = require('express').Router();
 const db = require('../db');
 const { requireAuth } = require('./auth');
+
 router.use(requireAuth);
+console.log('Supabase URL loaded:', process.env.SUPABASE_URL);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const storage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new Error('Only JPG, PNG, and WEBP images are allowed.'));
+    }
+
+    cb(null, true);
+  },
+});
 
 const FIELDS = 'user_id, full_name, email, auth_provider, age, origin_location, avatar_url, cover_photo_url, bio, budget_range, rating, trips_count, matches_count, is_verified, hide_contact_info, last_seen_at, travel_styles, interests, is_active, role, created_at, updated_at';
 const list = v => Array.isArray(v) ? v.map(s => String(s).trim()).filter(Boolean).slice(0, 15) : [];
@@ -14,17 +38,63 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   try {
     const b = req.body;
-    if (!b.full_name || !b.full_name.trim()) return res.status(400).json({ error: 'Name is required.' });
+
+    if (!b.full_name || !b.full_name.trim()) {
+      return res.status(400).json({ error: 'Name is required.' });
+    }
+
     const age = b.age === '' || b.age == null ? null : parseInt(b.age, 10);
-    if (age !== null && (isNaN(age) || age < 16 || age > 100)) return res.status(400).json({ error: 'Enter a valid age.' });
+
+    if (age !== null && (isNaN(age) || age < 16 || age > 100)) {
+      return res.status(400).json({ error: 'Enter a valid age.' });
+    }
+
+    const cur = await db.query(
+      `SELECT avatar_url, cover_photo_url FROM users WHERE user_id = $1`,
+      [req.user.id]
+    );
+
+    if (!cur.rowCount) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const u = cur.rows[0];
+
     const r = await db.query(
-      `UPDATE users SET full_name=$1, age=$2, origin_location=$3, bio=$4, budget_range=$5,
-         travel_styles=$6, interests=$7, avatar_url=$8, hide_contact_info=$9, updated_at=now()
-       WHERE user_id=$10 RETURNING ${FIELDS}`,
-      [b.full_name.trim(), age, b.origin_location || null, b.bio || null, b.budget_range || null,
-       list(b.travel_styles), list(b.interests), b.avatar_url || null, b.hide_contact_info !== false, req.user.id]);
+      `UPDATE users SET
+        full_name=$1,
+        age=$2,
+        origin_location=$3,
+        bio=$4,
+        budget_range=$5,
+        travel_styles=$6,
+        interests=$7,
+        avatar_url=$8,
+        cover_photo_url=$9,
+        hide_contact_info=$10,
+        updated_at=now()
+       WHERE user_id=$11
+       RETURNING ${FIELDS}`,
+      [
+        b.full_name.trim(),
+        age,
+        b.origin_location || null,
+        b.bio || null,
+        b.budget_range || null,
+        list(b.travel_styles),
+        list(b.interests),
+        b.avatar_url !== undefined ? b.avatar_url : u.avatar_url,
+        b.cover_photo_url !== undefined ? b.cover_photo_url : u.cover_photo_url,
+        b.hide_contact_info !== false,
+        req.user.id,
+      ]
+    );
+
     res.json(r.rows[0]);
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error.' });
+  }
 });
 
 router.patch('/', async (req, res) => {
@@ -56,6 +126,63 @@ router.patch('/', async (req, res) => {
       ]);
     res.json(r.rows[0]);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
+});
+router.post('/upload', storage.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please select an image.' });
+    }
+
+    const type = req.body.type;
+
+    const columns = {
+      avatar: 'avatar_url',
+      cover: 'cover_photo_url',
+    };
+
+    const column = columns[type];
+
+    if (!column) {
+      return res.status(400).json({ error: 'Invalid image type.' });
+    }
+
+    const extension = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+    }[req.file.mimetype];
+
+    const filePath = `${req.user.id}/${type}-${randomUUID()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('profile-images')
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('profile-images')
+      .getPublicUrl(filePath);
+
+    const imageUrl = data.publicUrl;
+
+    const updated = await db.query(
+      `UPDATE users
+       SET ${column} = $1, updated_at = now()
+       WHERE user_id = $2
+       RETURNING ${FIELDS}`,
+      [imageUrl, req.user.id]
+    );
+
+    res.json(updated.rows[0]);
+  } catch (e) {
+    console.error('Image upload error:', e);
+    res.status(500).json({ error: e.message || 'Image upload failed.' });
+  }
 });
 
 module.exports = router;
