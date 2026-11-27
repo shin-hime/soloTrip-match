@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Heart, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtRange, gradientFor } from "@/lib/utils";
 import type { MatchedTraveler } from "@/types";
@@ -44,7 +45,6 @@ export default function DiscoverPage() {
   }, [trip?.trip_id]);
   const [active, setActive] = useState<Record<string, boolean>>({});
   const [queue, setQueue] = useState<MatchedTraveler[]>([]);
-  const [saved, setSaved] = useState<number[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
   // Filter chips are derived from the user's active trip; all on by default.
@@ -190,9 +190,8 @@ export default function DiscoverPage() {
                 </div>
               </div>
               <div className="p-3">
-                <div className="flex justify-between text-xs text-muted">
+                <div className="text-xs text-muted">
                   <span>{fmtRange(u.departure_date, u.return_date)}</span>
-                  <span>★ {Number(u.rating ?? 0).toFixed(1)}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(u.interests ?? []).slice(0, 2).map((i) => <Chip key={i} small active>{i}</Chip>)}
@@ -234,14 +233,13 @@ export default function DiscoverPage() {
                   }}
                 />
               </div>
-              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/75 to-transparent p-4">
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-4">
                 <div>
                   <Link href={`/users/${current.user_id}`} className="font-serif text-2xl hover:text-brand hover:underline">
                     {current.full_name}{current.age ? `, ${current.age}` : ""}
                   </Link>
                   <p className="text-xs text-brand">📍 {current.destination}</p>
                 </div>
-                <span className="rounded-full bg-black/40 px-2 py-1 text-xs">★ {Number(current.rating ?? 0).toFixed(1)}</span>
               </div>
             </div>
             <div className="space-y-3 p-4">
@@ -260,13 +258,23 @@ export default function DiscoverPage() {
         
         {current && (
           <div className="mt-5 flex items-center justify-center gap-4">
-            <button aria-label="Skip" onClick={next} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-ink-700 text-muted hover:text-white">✕</button>
-            <button aria-label="Send chat request" disabled={like.isPending}
+            <button
+              type="button"
+              aria-label="Skip"
+              onClick={next}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-ink-700 text-muted transition hover:text-white"
+            >
+              <X size={18} aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="Send chat request"
+              disabled={like.isPending}
               onClick={() => { like.mutate(current.user_id); next(); }}
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-xl text-ink-950 shadow-glow">♥</button>
-            <button aria-label={saved.includes(current.user_id) ? "Saved" : "Save for later"}
-              onClick={() => { setSaved((s) => [...s, current.user_id]); setToast("Saved for this session."); next(); }}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-ink-700">⭐</button>
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-ink-950 shadow-glow transition hover:brightness-110 disabled:opacity-50"
+            >
+              <Heart size={22} className="fill-current" aria-hidden />
+            </button>
           </div>
         )}
       </aside>
