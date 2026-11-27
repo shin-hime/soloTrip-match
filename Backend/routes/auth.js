@@ -38,7 +38,14 @@ function ensureResetColumns() {
 }
 
 const sign = u => jwt.sign({ id: u.user_id, role: u.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-const publicUser = u => ({ user_id: u.user_id, full_name: u.full_name, email: u.email, role: u.role, avatar_url: u.avatar_url });
+const publicUser = u => ({
+  user_id: u.user_id,
+  full_name: u.full_name,
+  email: u.email,
+  role: u.role,
+  avatar_url: u.avatar_url,
+  trips_count: Number(u.trips_count ?? 0),
+});
 
 async function requireAuth(req, res, next) {
   let p;
@@ -176,9 +183,16 @@ router.post('/reset-password', async (req, res) => {
 });
 
 router.get('/me', requireAuth, async (req, res) => {
-  const r = await db.query('SELECT * FROM users WHERE user_id = $1', [req.user.id]);
-  if (!r.rowCount) return res.status(404).json({ error: 'User not found.' });
-  res.json(publicUser(r.rows[0]));
+  try {
+    const r = await db.query(
+      `SELECT users.*,
+              (SELECT COUNT(*)::int FROM trips t WHERE t.user_id = users.user_id AND t.status::text <> 'cancelled') AS trips_count
+       FROM users WHERE user_id = $1`,
+      [req.user.id]
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'User not found.' });
+    res.json(publicUser(r.rows[0]));
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
 
 module.exports = router;

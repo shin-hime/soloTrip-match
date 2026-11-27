@@ -255,6 +255,7 @@ export default function ProfilePage() {
     onSuccess: () => {
       setTripToDelete(null);
       setDeleteTripError(null);
+      qc.invalidateQueries({ queryKey: ["me"] });
       qc.invalidateQueries({ queryKey: ["my-trips"] });
       qc.invalidateQueries({ queryKey: ["active-trip"] });
       qc.invalidateQueries({ queryKey: ["matches"] });
@@ -280,7 +281,7 @@ export default function ProfilePage() {
             <h1 className="mt-3 text-lg font-bold">{u.full_name}{u.age ? `, ${u.age}` : ""}</h1>
             <p className="text-xs text-muted">{u.origin_location}{u.is_verified ? " · Verified ✓" : ""}</p>
             <dl className="mt-4 flex gap-6 font-serif text-xl">
-              {[["Trips", u.trips_count ?? 0], ["Matches", u.matches_count ?? 0]].map(([label, val]) => (
+              {[["Trips", trips.data ? trips.data.length : (u.trips_count ?? 0)], ["Matches", u.matches_count ?? 0]].map(([label, val]) => (
                 <div key={label as string}><dd>{val}</dd><dt className="font-sans text-[11px] text-muted">{label}</dt></div>
               ))}
             </dl>

@@ -32,7 +32,9 @@ router.get('/', async (req, res) => {
       `SELECT mt.trip_id AS my_trip_id, mt.departure_date::text AS my_dep, mt.return_date::text AS my_ret,
               mt.budget_usd AS my_budget, mi.interests AS my_interests, mi.travel_styles AS my_styles,
               u.user_id, u.full_name, u.age, u.origin_location, u.avatar_url, u.bio, u.budget_range,
-              u.travel_styles, u.interests, u.rating, u.trips_count, u.is_verified,
+              u.travel_styles, u.interests, u.rating,
+              (SELECT COUNT(*)::int FROM trips t2 WHERE t2.user_id = u.user_id AND t2.status::text <> 'cancelled') AS trips_count,
+              u.is_verified,
               t.trip_id, t.destination, t.departure_date::text AS departure_date, t.return_date::text AS return_date, t.budget_usd
        FROM trips mt
        JOIN users mi ON mi.user_id = mt.user_id

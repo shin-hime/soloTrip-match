@@ -11,7 +11,9 @@ router.get('/:id', async (req, res) => {
 
     const userRes = await db.query(
       `SELECT user_id, full_name, email, age, origin_location, avatar_url, cover_photo_url,
-              bio, budget_range, rating, trips_count, matches_count, is_verified,
+              bio, budget_range, rating,
+              (SELECT COUNT(*)::int FROM trips t WHERE t.user_id = users.user_id AND t.status::text <> 'cancelled') AS trips_count,
+              matches_count, is_verified,
               hide_contact_info, travel_styles, interests, is_active
        FROM users
        WHERE user_id = $1`,

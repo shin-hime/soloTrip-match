@@ -30,8 +30,15 @@ const FIELDS = 'user_id, full_name, email, auth_provider, age, origin_location, 
 const list = v => Array.isArray(v) ? v.map(s => String(s).trim()).filter(Boolean).slice(0, 15) : [];
 
 router.get('/', async (req, res) => {
-  const r = await db.query(`SELECT ${FIELDS} FROM users WHERE user_id = $1`, [req.user.id]);
-  res.json(r.rows[0]);
+  try {
+    const r = await db.query(
+      `SELECT ${FIELDS},
+              (SELECT COUNT(*)::int FROM trips t WHERE t.user_id = users.user_id AND t.status::text <> 'cancelled') AS trips_count
+       FROM users WHERE user_id = $1`,
+      [req.user.id]
+    );
+    res.json(r.rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
 
 router.put('/', async (req, res) => {

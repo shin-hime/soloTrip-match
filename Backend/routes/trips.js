@@ -17,6 +17,17 @@ async function setRange(id, dep, ret) {
   catch (e) { /* generated or absent column */ }
 }
 
+async function syncTripsCount(userId) {
+  try {
+    await db.query(
+      `UPDATE users
+       SET trips_count = (SELECT COUNT(*)::int FROM trips WHERE user_id = $1 AND status::text <> 'cancelled')
+       WHERE user_id = $1`,
+      [userId]
+    );
+  } catch (e) { /* non-fatal */ }
+}
+
 router.get('/mine', async (req, res) => {
   try {
     const r = await db.query(
@@ -37,6 +48,7 @@ router.post('/', async (req, res) => {
        RETURNING trip_id, user_id, destination, traveling_from, departure_date::text, return_date::text, budget_usd, looking_for_count, status, created_at`,
       [req.user.id, b.destination.trim(), (b.traveling_from || '').trim(), b.departure_date, b.return_date, num(b.budget_usd), num(b.looking_for_count) || 1]);
     await setRange(r.rows[0].trip_id, b.departure_date, b.return_date);
+    await syncTripsCount(req.user.id);
     res.status(201).json(r.rows[0]);
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error.' }); }
 });
@@ -73,6 +85,7 @@ router.delete('/:id', async (req, res) => {
         throw delErr;
       }
     }
+    await syncTripsCount(req.user.id);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);

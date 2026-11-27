@@ -33,6 +33,8 @@ export default function NewTripPage() {
         interests,
       }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["me"] });
+      qc.invalidateQueries({ queryKey: ["my-trips"] });
       qc.invalidateQueries({ queryKey: ["active-trip"] });
       qc.invalidateQueries({ queryKey: ["matches"] });
       router.push("/discover");
