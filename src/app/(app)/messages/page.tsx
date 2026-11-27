@@ -2,12 +2,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, UserPlus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { clockTime, cn, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import type { DirectMessage } from "@/types";
 import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
 import { UserSafetyMenu } from "@/components/UserSafetyMenu";
 
 export default function MessagesPage() {
@@ -19,7 +21,8 @@ export default function MessagesPage() {
   const [toast, setToast] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
-  const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations });
+  const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations, refetchInterval: 10000 });
+  const incoming = useQuery({ queryKey: ["incoming-requests"], queryFn: api.incomingRequests, refetchInterval: 10000 });
   const msgs = useQuery({
     queryKey: ["messages", active],
     queryFn: () => api.messages(active!),
@@ -27,8 +30,30 @@ export default function MessagesPage() {
     refetchInterval: active !== null ? 4000 : false,
   });
   const convList = Array.isArray(convs.data) ? convs.data : [];
+  const incomingList = Array.isArray(incoming.data) ? incoming.data : [];
   const msgList = Array.isArray(msgs.data) ? msgs.data : [];
   const current = convList.find((c) => c.conversation_id === active);
+
+  const acceptReq = useMutation({
+    mutationFn: (userId: number) => api.acceptChatRequest(userId),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["incoming-requests"] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      if (res.conversation_id) setActive(res.conversation_id);
+      setToast("Chat request accepted.");
+    },
+    onError: (e: Error) => setToast(e.message || "Couldn't accept chat request."),
+  });
+
+  const declineReq = useMutation({
+    mutationFn: (userId: number) => api.declineChatRequest(userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["incoming-requests"] });
+      setToast("Chat request declined.");
+    },
+    onError: (e: Error) => setToast(e.message || "Couldn't decline chat request."),
+  });
 
   const filtered = useMemo(
     () => convList.filter((c) => c.other_user.full_name.toLowerCase().includes(search.toLowerCase())),
@@ -89,6 +114,62 @@ export default function MessagesPage() {
           <h1 className="font-serif text-2xl">Messages</h1>
           <input className="field mt-4" placeholder="Search conversations…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search conversations" />
         </div>
+        {incomingList.length > 0 && (
+          <div className="border-t border-white/5 bg-white/[0.02] px-4 py-3">
+            <div className="mb-2.5 flex items-center justify-between">
+              <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">
+                <UserPlus size={13} aria-hidden />
+                <span>Chat Requests</span>
+              </h2>
+              <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[11px] font-semibold text-brand">
+                {incomingList.length}
+              </span>
+            </div>
+            <ul className="max-h-44 space-y-2 overflow-y-auto">
+              {incomingList.map((req) => {
+                const busy = acceptReq.isPending || declineReq.isPending;
+                return (
+                  <li
+                    key={req.user_id}
+                    className="rounded-xl border border-white/10 bg-ink-900/60 p-2.5"
+                  >
+                    <Link
+                      href={`/users/${req.user_id}`}
+                      className="flex items-center gap-2.5 transition hover:text-brand"
+                    >
+                      <Avatar name={req.full_name} src={req.avatar_url} size={34} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{req.full_name}</p>
+                        <p className="truncate text-xs text-muted">
+                          {req.destination ? `Trip to ${req.destination}` : "Wants to connect"}
+                        </p>
+                      </div>
+                    </Link>
+                    <div className="mt-2.5 flex gap-2">
+                      <Button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => acceptReq.mutate(req.user_id)}
+                        className="inline-flex flex-1 items-center justify-center gap-1 py-1.5 text-xs"
+                      >
+                        <Check size={13} aria-hidden /> Accept
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => declineReq.mutate(req.user_id)}
+                        className="inline-flex flex-1 items-center justify-center gap-1 py-1.5 text-xs text-muted hover:text-white"
+                      >
+                        <X size={13} aria-hidden /> Decline
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         <ul className="min-h-0 flex-1 overflow-y-auto border-t border-white/5">
           {convs.isLoading && <li className="p-5 text-sm text-muted">Loading…</li>}
           {convs.isSuccess && filtered.length === 0 && (

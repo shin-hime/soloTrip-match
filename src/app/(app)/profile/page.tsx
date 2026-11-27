@@ -235,7 +235,10 @@ export default function ProfilePage() {
 
   const update = useMutation({
     mutationFn: api.updateMe,
-    onSuccess: syncUser,
+    onSuccess: (updated) => {
+      syncUser(updated);
+      qc.invalidateQueries({ queryKey: ["user-profile"] });
+    },
   });
 
   const unblock = useMutation({

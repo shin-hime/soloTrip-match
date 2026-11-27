@@ -1,8 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, X } from "lucide-react";
 import { api, USE_MOCK } from "@/lib/api";
 import { useAuth } from "@/store/auth";
 import { Button } from "@/components/ui/Button";
@@ -18,6 +19,37 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotResult, setForgotResult] = useState<{ message: string; devResetPath?: string } | null>(null);
+
+  const forgotMutation = useMutation({
+    mutationFn: (targetEmail: string) => api.forgotPassword(targetEmail),
+    onSuccess: (res) => {
+      setForgotError(null);
+      setForgotResult({ message: res.message, devResetPath: res.devResetPath });
+    },
+    onError: (e: Error) => setForgotError(e.message || "Couldn't process request."),
+  });
+
+  const submitForgot = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (forgotMutation.isPending) return;
+    if (!/^\S+@\S+\.\S+$/.test(forgotEmail.trim())) {
+      setForgotError("Enter a valid email address.");
+      return;
+    }
+    setForgotError(null);
+    forgotMutation.mutate(forgotEmail.trim());
+  };
+
+  const closeForgot = () => {
+    if (forgotMutation.isPending) return;
+    setForgotOpen(false);
+    setForgotError(null);
+    setForgotResult(null);
+  };
 
   useEffect(() => {
     if (token) router.replace(role?.toLowerCase() === "admin" ? "/moderation" : "/discover");
@@ -90,7 +122,20 @@ export default function LoginPage() {
             </div>
 
             {mode === "signin" && (
-              <div className="text-right"><span className="text-xs text-brand">Forgot password?</span></div>
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotEmail(email);
+                    setForgotError(null);
+                    setForgotResult(null);
+                    setForgotOpen(true);
+                  }}
+                  className="text-xs font-medium text-brand hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
             )}
             {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
 
@@ -109,6 +154,95 @@ export default function LoginPage() {
           {USE_MOCK && <p className="mt-3 text-center text-[11px] text-muted/70">Mock mode: any valid email and 8+ character password works.</p>}
         </div>
       </section>
+
+      {forgotOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Reset password"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeForgot();
+          }}
+        >
+          <div className="panel w-full max-w-md rounded-2xl border border-white/10 bg-ink-800 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand/30 bg-brand-soft text-brand">
+                  <KeyRound size={18} aria-hidden />
+                </span>
+                <div>
+                  <h2 className="font-serif text-2xl leading-tight">Forgot password?</h2>
+                  <p className="mt-1 text-xs text-muted">
+                    Enter your account email to generate a password reset link.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={closeForgot}
+                className="rounded-lg p-1 text-muted transition hover:bg-white/5 hover:text-white"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            {forgotResult ? (
+              <div className="mt-5 space-y-4">
+                <div className="flex items-start gap-2.5 rounded-xl border border-brand/30 bg-brand-soft p-3.5 text-sm text-white">
+                  <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+                  <p>{forgotResult.message}</p>
+                </div>
+                {forgotResult.devResetPath && (
+                  <Link
+                    href={forgotResult.devResetPath}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-ink-950 shadow-glow transition hover:brightness-110"
+                  >
+                    <span>Continue to Reset Password</span>
+                    <ArrowRight size={15} aria-hidden />
+                  </Link>
+                )}
+                <div className="flex justify-end">
+                  <Button type="button" variant="ghost" onClick={closeForgot}>
+                    Back to Sign in
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={submitForgot} className="mt-5 space-y-4" noValidate>
+                <div>
+                  <label className="label" htmlFor="forgot-email">
+                    Email address
+                  </label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    autoComplete="email"
+                    className="field"
+                    placeholder="you@example.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                  />
+                </div>
+                {forgotError && (
+                  <p role="alert" className="text-sm text-rose-400">
+                    {forgotError}
+                  </p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" disabled={forgotMutation.isPending} onClick={closeForgot}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={forgotMutation.isPending}>
+                    {forgotMutation.isPending ? "Sending..." : "Send reset link"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Compass, MessageCircle, Plane, Shield, User, Users } from "lucide-react";
 import { api } from "@/lib/api";
-import { closeSocket } from "@/lib/socket";
+import { closeSocket, getSocket } from "@/lib/socket";
 import { cn, timeAgo } from "@/lib/utils";
 import { useAuth } from "@/store/auth";
 import type { AppNotification } from "@/types";
@@ -33,6 +33,7 @@ function notificationHref(n: AppNotification & { group_id?: number | null }): st
     type === "request_accepted" ||
     title.includes("match") ||
     title.includes("chat") ||
+    title.includes("request") ||
     title.includes("message")
   ) {
     return "/messages";
@@ -84,13 +85,36 @@ export function Navbar() {
     };
   }, [bellOpen, menuOpen]);
 
-  const convs = useQuery({ queryKey: ["conversations"], queryFn: api.conversations, enabled: !isAdmin });
-  const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications });
+  const convs = useQuery({
+    queryKey: ["conversations"],
+    queryFn: api.conversations,
+    enabled: !isAdmin,
+    refetchInterval: !isAdmin ? 10000 : false,
+  });
+  const notes = useQuery({
+    queryKey: ["notifications"],
+    queryFn: api.notifications,
+    refetchInterval: 10000,
+  });
   const navLinks = isAdmin ? adminLinks : travelerLinks;
   const convList = Array.isArray(convs.data) ? convs.data : [];
   const noteList = Array.isArray(notes.data) ? notes.data : [];
   const unread = convList.reduce((n, c) => n + Number(c.unread_count ?? 0), 0);
-  const hasNewNotes = noteList.some((n) => !n.is_read);
+  const unreadNotes = noteList.filter((n) => !n.is_read).length;
+
+  useEffect(() => {
+    const s = getSocket();
+    if (!s) return;
+    const onNotification = () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["incoming-requests"] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    };
+    s.on("notification:new", onNotification);
+    return () => {
+      s.off("notification:new", onNotification);
+    };
+  }, [qc]);
 
   const readNote = useMutation({
     mutationFn: api.markNotificationRead,
@@ -159,7 +183,11 @@ export function Navbar() {
             className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-ink-800"
           >
             <Bell size={16} aria-hidden />
-            {hasNewNotes && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand" />}
+            {unreadNotes > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-ink-950">
+                {unreadNotes > 9 ? "9+" : unreadNotes}
+              </span>
+            )}
           </button>
           {bellOpen && (
             <div className="absolute right-0 z-50 mt-2 max-h-96 w-72 overflow-y-auto rounded-2xl border border-white/10 bg-ink-800 p-2 shadow-xl">

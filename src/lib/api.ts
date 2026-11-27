@@ -3,7 +3,7 @@
 // so the UI is fully usable before the Express API exists.
 import { useAuth } from "@/store/auth";
 import type {
-  AppNotification, AuthResponse, BlockedUser, Conversation, DirectMessage, GroupMessage, MatchedTraveler, MatchFilters,
+  AppNotification, AuthResponse, BlockedUser, Conversation, DirectMessage, GroupMessage, IncomingChatRequest, MatchedTraveler, MatchFilters,
   NewGroupInput, NewTripInput, PublicUserProfile, Trip, TripGroup, User, UserReport, ReportStatus,
 } from "@/types";
 import {
@@ -143,6 +143,21 @@ export const api = {
       ? wait({ token: "mock-token", user: { ...mockMe, full_name, email } })
       : request<AuthResponse>("/auth/register", { method: "POST", json: { full_name, email, password } })
           .then((r) => ({ token: r.token, user: normalizeUser(r.user) })),
+  forgotPassword: (
+    email: string
+  ): Promise<{ ok: boolean; message: string; devResetToken?: string; devResetPath?: string }> =>
+    USE_MOCK
+      ? wait({
+          ok: true,
+          message: "If that email is registered, a reset link has been generated.",
+          devResetToken: "mock-reset-token",
+          devResetPath: "/reset-password?token=mock-reset-token",
+        })
+      : request("/auth/forgot-password", { method: "POST", json: { email } }),
+  resetPassword: (payload: { token: string; password: string }): Promise<{ ok: boolean }> =>
+    USE_MOCK
+      ? wait({ ok: true })
+      : request("/auth/reset-password", { method: "POST", json: payload }),
   me: (): Promise<User> =>
     USE_MOCK ? wait(mockMe) : request<Partial<User>>("/profile").then(normalizeUser),
   userProfile: (id: number): Promise<PublicUserProfile> => {
@@ -258,6 +273,37 @@ myActiveTrip: (): Promise<Trip | null> => {
     USE_MOCK
       ? wait(undefined, 150)
       : request("/likes", { method: "POST", json: { user_id: receiver_id, action: "like" } }).then(() => undefined),
+  incomingRequests: (): Promise<IncomingChatRequest[]> => {
+    if (USE_MOCK) return wait([], 100);
+    return request<Partial<IncomingChatRequest>[]>("/likes/incoming").then((rows) =>
+      Array.isArray(rows)
+        ? rows.map((r) => ({
+            like_id: Number(r.like_id ?? 0),
+            user_id: Number(r.user_id ?? 0),
+            full_name: r.full_name ?? `User ${r.user_id ?? ""}`,
+            avatar_url: r.avatar_url ?? null,
+            origin_location: r.origin_location ?? null,
+            destination: r.destination ?? null,
+            created_at: r.created_at ?? new Date().toISOString(),
+          }))
+        : []
+    );
+  },
+  acceptChatRequest: (user_id: number): Promise<{ matched: boolean; conversation_id?: number }> =>
+    USE_MOCK
+      ? wait({ matched: true }, 150)
+      : request<{ matched: boolean; conversation_id?: number }>("/likes", {
+          method: "POST",
+          json: { user_id, action: "like" },
+        }),
+  declineChatRequest: (user_id: number): Promise<void> =>
+    USE_MOCK
+      ? wait(undefined, 150)
+      : request("/likes", { method: "POST", json: { user_id, action: "skip" } }).then(() => undefined),
+  cancelChatRequest: (user_id: number): Promise<void> =>
+    USE_MOCK
+      ? wait(undefined, 150)
+      : request(`/users/${user_id}/request`, { method: "DELETE" }).then(() => undefined),
 
   // ---- messaging
   conversations: (): Promise<Conversation[]> => {

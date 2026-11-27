@@ -49,7 +49,7 @@ router.put('/', async (req, res) => {
     }
 
     const cur = await db.query(
-      `SELECT avatar_url, cover_photo_url FROM users WHERE user_id = $1`,
+      `SELECT avatar_url, cover_photo_url, hide_contact_info FROM users WHERE user_id = $1`,
       [req.user.id]
     );
 
@@ -84,7 +84,7 @@ router.put('/', async (req, res) => {
         list(b.interests),
         b.avatar_url !== undefined ? b.avatar_url : u.avatar_url,
         b.cover_photo_url !== undefined ? b.cover_photo_url : u.cover_photo_url,
-        b.hide_contact_info !== false,
+        b.hide_contact_info !== undefined ? Boolean(b.hide_contact_info) : Boolean(u.hide_contact_info),
         req.user.id,
       ]
     );

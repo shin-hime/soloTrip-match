@@ -92,6 +92,16 @@ export interface ChatRequest {
   created_at: string;
 }
 
+export interface IncomingChatRequest {
+  like_id: number;
+  user_id: number;
+  full_name: string;
+  avatar_url: string | null;
+  origin_location: string | null;
+  destination: string | null;
+  created_at: string;
+}
+
 export interface Conversation {
   conversation_id: number;
   other_user: {

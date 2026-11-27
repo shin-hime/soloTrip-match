@@ -9,7 +9,6 @@ import {
   Ban,
   Calendar,
   Check,
-  Clock,
   Flag,
   Mail,
   MapPin,
@@ -43,7 +42,7 @@ export default function TravelerProfilePage() {
   const meId = useAuth((s) => s.user?.user_id);
   const targetId = Number(params.id);
 
-  const [modal, setModal] = useState<"block" | "unblock" | "report" | null>(null);
+  const [modal, setModal] = useState<"block" | "unblock" | "report" | "cancel-request" | null>(null);
   const [reason, setReason] = useState<ReportReason>("Harassment");
   const [details, setDetails] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
@@ -88,6 +87,16 @@ export default function TravelerProfilePage() {
       setToast("Chat request sent.");
     },
     onError: (e: Error) => setToast(e.message || "Couldn't send chat request."),
+  });
+
+  const cancelRequestMutation = useMutation({
+    mutationFn: () => api.cancelChatRequest(targetId),
+    onSuccess: () => {
+      closeModal();
+      invalidateRelationship();
+      setToast("Chat request canceled.");
+    },
+    onError: (e: Error) => setModalError(e.message || "Couldn't cancel chat request."),
   });
 
   const blockMutation = useMutation({
@@ -266,11 +275,15 @@ export default function TravelerProfilePage() {
                       <Button
                         type="button"
                         full
-                        disabled
                         variant="outline"
-                        className="inline-flex items-center justify-center gap-1.5"
+                        disabled={cancelRequestMutation.isPending}
+                        onClick={() => {
+                          setModalError(null);
+                          setModal("cancel-request");
+                        }}
+                        className="inline-flex items-center justify-center gap-1.5 border-amber-300/30 text-amber-200 hover:bg-amber-500/15"
                       >
-                        <Clock size={15} aria-hidden /> Request Sent
+                        <X size={15} aria-hidden /> Cancel Request
                       </Button>
                     ) : (
                       <Button
@@ -335,14 +348,16 @@ export default function TravelerProfilePage() {
             <h2 className="mb-2 text-sm font-semibold">Travel style & details</h2>
             <Row k="Style" v={(u.travel_styles ?? []).join(" · ") || null} />
             <Row k="Budget" v={u.budget_range} />
-            {u.contact_info && (
-              <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
-                <span className="inline-flex items-center gap-1.5 text-muted">
-                  <Mail size={13} aria-hidden /> Contact
-                </span>
+            <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
+              <span className="inline-flex items-center gap-1.5 text-muted">
+                <Mail size={13} aria-hidden /> Contact
+              </span>
+              {u.hide_contact_info || !u.contact_info ? (
+                <span className="text-muted">Hidden by traveler</span>
+              ) : (
                 <span>{u.contact_info}</span>
-              </div>
-            )}
+              )}
+            </div>
           </section>
 
           <section className="panel p-5">
@@ -391,6 +406,21 @@ export default function TravelerProfilePage() {
           </section>
         </div>
       </div>
+
+      {modal === "cancel-request" && (
+        <ConfirmModal
+          open
+          variant="danger"
+          title="Cancel chat request?"
+          description={`This will withdraw your pending chat request to ${u.full_name}.`}
+          confirmLabel="Cancel Request"
+          loadingLabel="Canceling..."
+          isLoading={cancelRequestMutation.isPending}
+          error={modalError}
+          onConfirm={() => cancelRequestMutation.mutate()}
+          onClose={closeModal}
+        />
+      )}
 
       {modal === "block" && (
         <ConfirmModal

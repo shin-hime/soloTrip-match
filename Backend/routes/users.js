@@ -57,6 +57,10 @@ router.get('/:id', async (req, res) => {
     const theyLiked = likesRes.rows.some((r) => r.liker_id === target && r.liked_id === me);
     const request_status = iLiked ? 'sent' : theyLiked ? 'received' : 'none';
 
+    const hideContact = Boolean(u.hide_contact_info);
+    const isAdmin = String(req.user.role || '').toLowerCase() === 'admin';
+    const canSeeContact = !hideContact || me === u.user_id || isAdmin;
+
     res.json({
       user_id: u.user_id,
       full_name: u.full_name,
@@ -72,14 +76,57 @@ router.get('/:id', async (req, res) => {
       trips_count: Number(u.trips_count || 0),
       matches_count: Number(u.matches_count || 0),
       is_verified: Boolean(u.is_verified),
-      hide_contact_info: Boolean(u.hide_contact_info),
-      contact_info: !u.hide_contact_info || is_matched ? u.email : null,
+      hide_contact_info: hideContact,
+      email: canSeeContact ? u.email : null,
+      contact_info: canSeeContact ? u.email : null,
       trips: tripsRes.rows,
       is_blocked,
       is_matched,
       conversation_id,
       request_status,
     });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+router.delete('/:id/request', async (req, res) => {
+  try {
+    const me = req.user.id;
+    const target = parseInt(req.params.id, 10);
+    if (!target || target === me) {
+      return res.status(400).json({ error: 'Invalid user ID.' });
+    }
+
+    const conv = await db.query(
+      `SELECT 1 FROM conversations
+       WHERE user_one_id = LEAST($1::int, $2::int) AND user_two_id = GREATEST($1::int, $2::int)`,
+      [me, target]
+    );
+    if (conv.rowCount) {
+      return res.status(409).json({ error: 'You are already matched with this traveler.' });
+    }
+
+    await db.query(
+      `DELETE FROM likes WHERE liker_id = $1 AND liked_id = $2 AND action = 'like'`,
+      [me, target]
+    );
+
+    const senderRes = await db.query('SELECT full_name FROM users WHERE user_id = $1', [me]);
+    const senderName = senderRes.rows[0]?.full_name;
+    if (senderName) {
+      await db.query(
+        `DELETE FROM notifications
+         WHERE user_id = $1
+           AND title = 'New chat request'
+           AND message = $2
+           AND is_read IS NOT TRUE`,
+        [target, `${senderName} sent you a chat request.`]
+      );
+    }
+
+    res.json({ ok: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error.' });
